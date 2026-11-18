@@ -89,8 +89,8 @@ let USER = null;
 try { USER = JSON.parse(localStorage.getItem("uzilmas_user") || "null"); } catch (e) {}
 function token() { try { return localStorage.getItem("uzilmas_token") || ""; } catch (e) { return ""; } }
 const ROLE_PAGES = {
-  qabul: ["/reception"], hamshira: ["/nurse"], shifokor: ["/dashboard", "/doctor"],
-  bosh: ["/dashboard", "/reception", "/nurse", "/doctor"], bemor: ["/patient"],
+  qabul: ["/reception"], hamshira: ["/nurse"], shifokor: ["/dashboard", "/doctor", "/analytics"],
+  bosh: ["/dashboard", "/analytics", "/reception", "/nurse", "/doctor"], bemor: ["/patient"],
 };
 // Sahifa faqat ruxsat etilgan rollarga oçiladi; boşqa rol öz sahifasiga, kirmagan — /login ga
 function guardPage(roles) {
@@ -111,6 +111,7 @@ const PAGES = [
   ["/nurse", "user", t("Hamşira")],
   ["/doctor", "steth", t("Oilaviy şifokor")],
   ["/patient", "heart", t("Bemor kabineti")],
+  ["/analytics", "trend", t("Statistika")],
 ];
 function topbar(active, right = "") {
   const el = document.getElementById("topbar"); if (!el) return;

@@ -51,6 +51,13 @@
   .row .sm { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px; }
 
   #mapbox { position: relative; min-height: 0; }
+  .pmark { width: 30px; height: 30px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #0A6CF5; border: 3px solid #fff;
+    box-shadow: 0 3px 10px rgba(10,30,70,.35); display: flex; align-items: center; justify-content: center; }
+  .pmark svg { transform: rotate(45deg); }
+  .pmark.sm { width: 16px; height: 16px; border-width: 2px; display: inline-flex; vertical-align: -3px; margin-right: 6px; box-shadow: none; }
+  .plegend { position: absolute; z-index: 500; right: 12px; top: 12px; background: #fff; border-radius: 10px; padding: 6px 10px;
+    font-size: 12px; font-weight: 600; color: var(--ink); box-shadow: 0 2px 8px rgba(10,30,70,.15); }
+  .ptag { display: inline-block; margin-top: 4px; padding: 1px 6px; border-radius: 6px; background: #E6F0FF; color: #0A6CF5; font-weight: 600; font-size: 11px; }
   #map { height: 100%; width: 100%; } .leaflet-container { background: #EEF2F7; font-family: var(--font); }
   .maptitle { position: absolute; left: 14px; top: 14px; z-index: 500; background: #fff; border: 1px solid var(--line); border-radius: 10px;
               padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--ink); box-shadow: var(--shadow); }
@@ -122,7 +129,7 @@
     </div>
     <div id="list"></div>
   </div>
-  <div id="mapbox"><div class="maptitle" data-t>Toşkent xaritasi — nuqtani bosing</div><div id="map"></div>
+  <div id="mapbox"><div class="maptitle" data-t>Toşkent xaritasi — nuqtani bosing</div><div class="plegend"><span class="pmark sm"><svg viewBox="0 0 24 24" width="10" height="10"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></span><span data-t>Hamkor klinikalar</span> · 3</div><div id="map"></div>
     <div class="maplegend"><span><span class="dot red"></span><span data-t>Qizil</span></span><span><span class="dot yellow"></span><span data-t>Sariq</span></span><span><span class="dot green"></span><span data-t>Yaşil</span></span><span><span class="dot" style="background:#fff;border:2.5px solid #0B1B33;width:11px;height:11px"></span><span data-t>Uzilgan zanjir</span></span></div></div>
   <div class="col detail" id="detail"></div>
 </div>
@@ -193,9 +200,26 @@ function initMap() {
       },
     }).addTo(map);
     districts.bringToBack();
-    map.fitBounds(districts.getBounds(), { padding: [12, 12] });
+    map.fitBounds(districts.getBounds().extend(L.latLngBounds(PARTNERS.map(c => [c.lat, c.lon]))), { padding: [12, 12] });
     styleDistricts();
   }).catch(() => {});
+  drawPartners();
+}
+
+// ---------- Hamkor xususiy klinikalar (pilot) ----------
+// Koordinatalar manzil böyiça taxminiy (ma'lumotnoma: goldenpages.uz, yellowpages.uz, top.uz).
+const PARTNERS = [
+  { name: "Yashfaa Clinic", type: "Xususiy klinika · UZI", addr: "Qibray tumani, Salar, Universitet köç., 97", lat: 41.3500, lon: 69.3780 },
+  { name: "InCare Lab", type: "Laboratoriya diagnostikasi", addr: "Yakkasaroy tumani, Şota Rustaveli köç., 50", lat: 41.2860, lon: 69.2545 },
+  { name: "Akuşerlik va ginekologiya markazi", type: "Akuşer-ginekologik klinika", addr: "Mirzo Uluğbek tumani, Mirzo Uluğbek şoh köç., 132A", lat: 41.3290, lon: 69.3355 },
+];
+function drawPartners() {
+  PARTNERS.forEach(c => {
+    const icon = L.divIcon({ className: "", iconSize: [34, 34], iconAnchor: [17, 34], tooltipAnchor: [0, -30],
+      html: `<div class="pmark"><svg viewBox="0 0 24 24" width="16" height="16"><path fill="#fff" d="M10 3h4v7h7v4h-7v7h-4v-7H3v-4h7z"/></svg></div>` });
+    L.marker([c.lat, c.lon], { icon, zIndexOffset: -1000 }).addTo(map)
+      .bindTooltip(`<b>${esc(c.name)}</b><br>${esc(t(c.type))}<br><span style="color:#5B6B82">${esc(c.addr)}</span><br><span class="ptag">${esc(t("Hamkor klinika · pilot"))}</span>`, { direction: "top" });
+  });
 }
 function dName(f) { return LANG === "ru" ? (f.properties.name_ru || f.properties.name).replace(/ район$/, "") : f.properties.name; }
 function styleDistricts() {

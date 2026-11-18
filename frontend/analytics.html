@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Statistika</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px 48px; }
+  .head { display: flex; justify-content: space-between; align-items: end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+  .head h1 { font-size: 26px; } .head .muted { font-size: 13.5px; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: #fff; border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; }
+  .kpi span { font-size: 12.5px; color: var(--muted); display: block; }
+  .kpi b { font-size: 24px; color: var(--ink); display: block; margin-top: 4px; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+  .kpi small { font-size: 12px; color: var(--muted); } .kpi small .hyp { display: inline-flex; margin-left: 4px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .g3 { display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 16px; }
+  .card { margin-bottom: 16px; }
+  .bar { display: grid; grid-template-columns: 170px 1fr 110px; gap: 10px; align-items: center; padding: 7px 0; font-size: 13.5px; color: var(--ink); }
+  .bar .tr { height: 10px; background: var(--line-2); border-radius: 6px; overflow: hidden; }
+  .bar .tr i { display: block; height: 100%; border-radius: 6px; }
+  .bar b { text-align: right; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 9px 6px; border-bottom: 1px solid var(--line-2); color: var(--ink); }
+  th { font-size: 12px; color: var(--muted); font-weight: 500; } td.r, th.r { text-align: right; }
+  .mini { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .mini div { background: var(--bg); border-radius: 10px; padding: 10px 12px; }
+  .mini span { font-size: 12px; color: var(--muted); display: block; } .mini b { font-size: 18px; color: var(--ink); }
+  .note { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+  .src a { color: var(--blue); } .src li { margin: 3px 0; font-size: 13px; }
+  .hyp { display: inline-flex; height: 20px; align-items: center; padding: 0 7px; border-radius: 6px; background: var(--amber-50); color: var(--amber); font-size: 11.5px; font-weight: 600; }
+  @media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, 1fr); } .g2, .g3 { grid-template-columns: 1fr; } .wrap { padding: 14px; } .bar { grid-template-columns: 120px 1fr 90px; } }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="wrap">
+  <div class="head"><div><h1 data-t>Klinika statistikasi</h1>
+    <div class="muted" id="gen"></div></div>
+    <span class="tag" data-t>Demo: sintetik bemorlar, AI sarfi — haqiqiy so‘rovlar</span></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="g3">
+    <div class="card"><div class="card-h"><h3 id="h-money"></h3><span class="plan-badge premium" id="price"></span></div><div class="card-b" id="money"></div></div>
+    <div class="card"><div class="card-h"><h3 data-t>Qabullar</h3></div><div class="card-b" id="appts"></div></div>
+    <div class="card"><div class="card-h"><h3 data-t>Xavf va zanjir</h3></div><div class="card-b" id="risk"></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3 id="h-ai"></h3><span class="ai-badge" id="model"></span></div><div class="card-b" id="ai"></div></div>
+  <div class="g2">
+    <div class="card"><div class="card-h"><h3 data-t>Signallar va javobgarlik</h3></div><div class="card-b" id="signals"></div></div>
+    <div class="card"><div class="card-h"><h3 data-t>Şifokorlar: yuklama va javob tezligi</h3></div><div class="card-b" id="staff"></div></div>
+  </div>
+  <div class="card"><div class="card-h"><h3 data-t>Xususiy sektor — bozor</h3><span class="tag" data-t>rasmiy manbalar</span></div><div class="card-b" id="market"></div></div>
+</div>
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+guardPage(["bosh", "shifokor"]);
+topbar("/analytics"); i18n();
+document.getElementById("h-money").innerHTML = ic("crown", 16) + " " + t("Daromad — Premium");
+document.getElementById("h-ai").innerHTML = ic("spark", 16) + " " + t("AI sarfi — tokenlar va narx");
+const N = n => (n ?? 0).toLocaleString("ru-RU").replace(/,/g, " ");
+const S = n => N(Math.round(n || 0)) + " " + t("söm");
+const pct = v => v == null ? "—" : v + "%";
+const bar = (label, v, max, col, right) => `<div class="bar"><span>${label}</span><div class="tr"><i style="width:${max ? Math.min(100, 100 * v / max) : 0}%;background:${col}"></i></div><b>${right ?? N(v)}</b></div>`;
+async function load() {
+  let a;
+  try { a = await api("/api/analytics"); } catch (e) { return; }
+  document.getElementById("gen").textContent = t("Yangilandi:") + " " + fmtTime(a.generated_at) + " · " + t("har 10 soniyada");
+  const m = a.money, ap = a.appointments, sg = a.signals, ai = a.ai.total;
+  setHTML("kpis", [
+    [t("Kuzatuvda"), N(a.plan.total), t("{0} ta yangi (7 kun)", a.plan.new_7d)],
+    [t("Premium"), N(a.plan.premium), t("{0} ulushi", pct(a.plan.premium_share))],
+    [t("Klinika daromadi"), S(m.collected), t("Premium tölovlar")],
+    [t("Uzilmas ulushi"), S(m.uzilmas_revenue), `${Math.round(m.uzilmas_share * 100)}% <span class="hyp">${t("gipoteza")}</span>`],
+    [t("Kelmaslik"), pct(ap.noshow_rate), t("kelgan + kelmaganlardan")],
+    [t("Signalga javob"), sg.avg_ack_min == null ? "—" : sg.avg_ack_min + " " + t("daq"), t("örtaça (mediana {0})", sg.median_ack_min ?? "—")],
+  ].map(([k, v, s]) => `<div class="kpi"><span>${k}</span><b>${v}</b><small>${s}</small></div>`).join(""));
+  document.getElementById("price").innerHTML = ic("crown") + S(m.price);
+  const mx = Math.max(m.paid_in_full, m.prepaid_open, m.forfeited, m.expected_rest, 1);
+  setHTML("money", bar(t("Töliq tölangan"), m.paid_in_full, mx, "var(--green-dot)", S(m.paid_in_full))
+    + bar(t("50% oldindan (oçiq)"), m.prepaid_open, mx, "var(--blue)", S(m.prepaid_open))
+    + bar(t("Kelmadi — qaytarilmaydi"), m.forfeited, mx, "var(--amber-dot)", S(m.forfeited))
+    + bar(t("Kutilayotgan qoldiq"), m.expected_rest, mx, "var(--line)", S(m.expected_rest))
+    + `<div class="note">${t("Premium: {0}, oldindan {1}. Standart — klinika qabuli narxiga kiradi, alohida tölanmaydi.", S(m.price), S(m.prepay))}</div>`);
+  const bs = ap.by_status, amx = Math.max(...Object.values(bs), 1);
+  setHTML("appts", bar(t("Kutilmoqda"), bs.scheduled, amx, "var(--blue)") + bar(t("Keldi"), bs.came, amx, "var(--green-dot)")
+    + bar(t("Kelmadi"), bs.no_show, amx, "var(--red)") + bar(t("Köçirildi"), bs.moved, amx, "var(--faint)")
+    + `<div class="mini" style="margin-top:12px"><div><span>${t("Kelmaslik — Premium")}</span><b>${pct(ap.noshow_premium)}</b></div>
+       <div><span>${t("Kelmaslik — Standart")}</span><b>${pct(ap.noshow_standart)}</b></div></div>`);
+  const z = a.zones, ch = a.chains, rk = a.risk, zt = (z.red || 0) + (z.yellow || 0) + (z.green || 0);
+  setHTML("risk", bar(t("Qizil"), z.red || 0, zt, "var(--red)") + bar(t("Sariq"), z.yellow || 0, zt, "var(--amber-dot)")
+    + bar(t("Yaşil"), z.green || 0, zt, "var(--green-dot)")
+    + `<div class="mini" style="margin-top:12px"><div><span>${t("Uzilgan zanjir")}</span><b style="color:var(--red)">${ch.broken || 0}</b></div>
+       <div><span>${t("Kelmaslik xavfi yuqori")}</span><b>${rk.high}</b></div>
+       <div><span>${t("Örta xavf")}</span><b>${rk.mid}</b></div><div><span>${t("Past xavf")}</span><b>${rk.low}</b></div></div>`);
+  document.getElementById("model").innerHTML = ic("spark") + esc(a.ai.prices.model);
+  const fs = Object.entries(a.ai.features);
+  setHTML("ai", `<div class="mini" style="grid-template-columns:repeat(6,1fr)">
+      <div><span>${t("So‘rovlar")}</span><b>${N(ai.requests)}</b></div>
+      <div><span>${t("Gemini / qoidalar")}</span><b>${N(ai.gemini)} / ${N(ai.rules)}</b></div>
+      <div><span>${t("Kiriş tokenlari")}</span><b>${N(ai.tokens_in)}</b></div>
+      <div><span>${t("Çiqiş + fikrlaş")}</span><b>${N(ai.tokens_out)} + ${N(ai.tokens_think)}</b></div>
+      <div><span>${t("Jami narx")}</span><b>$${(ai.cost_usd || 0).toFixed(4)}</b></div>
+      <div><span>${t("Jami, söm")}</span><b>${S(ai.cost_uzs)}</b></div></div>
+    <table style="margin-top:14px"><tr><th>${t("Funksiya")}</th><th class="r">${t("So‘rov")}</th><th class="r">Gemini</th><th class="r">${t("Qoidalar")}</th>
+      <th class="r">${t("Kiriş tok.")}</th><th class="r">${t("Çiqiş tok.")}</th><th class="r">${t("Fikrlaş")}</th><th class="r">$</th><th class="r">${t("söm")}</th></tr>
+    ${fs.map(([k, f]) => `<tr><td>${esc(f.name)}</td><td class="r">${N(f.requests)}</td><td class="r">${N(f.gemini)}</td><td class="r">${N(f.rules)}</td>
+      <td class="r">${N(f.tokens_in)}</td><td class="r">${N(f.tokens_out)}</td><td class="r">${N(f.tokens_think)}</td>
+      <td class="r">${f.cost_usd.toFixed(5)}</td><td class="r">${N(f.cost_uzs)}</td></tr>`).join("")
+      || `<tr><td colspan="9" class="muted">${t("Hali AI so‘rovi yöq — qabulxonada «AI bilan töldiriş»ni bosing")}</td></tr>`}</table>
+    <div class="note">${t("Narx: kiriş ${0}, çiqiş ${1} — 1 mln token uçun; 1 $ = {2} söm. Bir Gemini so‘rovi ≈ {3}, bir bemorga ≈ {4}.",
+      a.ai.prices.in_usd, a.ai.prices.out_usd, N(a.ai.prices.usd_uzs), S(ai.cost_per_request_uzs), ai.cost_per_patient_uzs + " " + t("söm"))}</div>`);
+  setHTML("signals", `<div class="mini">
+      <div><span>${t("Qizil signallar")}</span><b>${sg.red_total}</b></div><div><span>${t("Tasdiqlangan")}</span><b>${sg.red_acked}</b></div>
+      <div><span>${t("Boş şifokorga kötarilgan")}</span><b>${sg.escalated}</b></div><div><span>${t("Kritik (2 soat javobsiz)")}</span><b style="color:var(--red)">${sg.critical}</b></div>
+      <div><span>${t("103 çaqirilgan")}</span><b>${sg.calls_103}</b></div><div><span>${t("Aktiv çaqiruvlar")}</span><b>${sg.active_calls}</b></div>
+      <div><span>${t("Bemor xabarlari")}</span><b>${sg.patient_msgs}</b></div><div><span>${t("Xavfli belgi bilan")}</span><b>${sg.patient_danger_msgs}</b></div></div>`);
+  setHTML("staff", `<table><tr><th>${t("Şifokor")}</th><th class="r">${t("Bemor")}</th><th class="r">${t("Signal")}</th><th class="r">${t("Oçiq")}</th><th class="r">${t("Javob, daq")}</th></tr>
+    ${a.staff.map(s => `<tr><td>${esc(s.name)}</td><td class="r">${s.patients}</td><td class="r">${s.alerts}</td>
+      <td class="r" style="${s.open ? "color:var(--red);font-weight:600" : ""}">${s.open}</td><td class="r">${s.avg_ack_min ?? "—"}</td></tr>`).join("")}</table>`);
+  const mk = a.market;
+  setHTML("market", `<div class="mini" style="grid-template-columns:repeat(4,1fr)">
+      <div><span>${t("Xususiy klinikalar (2026)")}</span><b>${N(mk.private_clinics_2026)}</b><span>${t("2016: {0}", N(mk.private_clinics_2016))}</span></div>
+      <div><span>${t("Xususiy sektor ulushi (örin-joylar)")}</span><b>${mk.private_beds_share[0]}% → ${mk.private_beds_share[1]}%</b></div>
+      <div><span>${t("Yangi xususiy klinikalar, 2025")}</span><b>${N(mk.new_private_2025)}</b><span>${t("Toşkent: {0}", mk.new_private_tashkent_2025)}</span></div>
+      <div><span>${t("Tuğilişlar, 2025")}</span><b>${N(mk.births_2025)}</b><span>${t("Toşkent: {0}", N(mk.births_tashkent_2025))}</span></div></div>
+    <ul class="src" style="margin-top:12px">${mk.sources.map(([n, u]) => `<li><a href="${esc(u)}" target="_blank" rel="noopener">${esc(n)}</a></li>`).join("")}</ul>`);
+}
+load(); setInterval(load, 10000);
+</script>
+</body>
+</html>

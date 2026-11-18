@@ -28,8 +28,11 @@ def _key() -> str:
     return os.environ.get("GEMINI_API_KEY", "").strip()
 
 
-async def _gemini(prompt: str, schema: Optional[dict] = None, temperature: float = 0.2) -> Optional[str]:
+async def _gemini(prompt: str, schema: Optional[dict] = None, temperature: float = 0.2,
+                  feature: str = "other") -> Optional[str]:
+    from .usage import record
     if not _key():
+        record(feature, "rules")
         return None
     cfg: dict = {"temperature": temperature}
     if schema:
@@ -40,9 +43,13 @@ async def _gemini(prompt: str, schema: Optional[dict] = None, temperature: float
             r = await c.post(GEMINI_URL.format(model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")),
                              json=body, headers={"x-goog-api-key": _key()})
         if r.status_code != 200:
+            record(feature, "rules", ok=False)
             return None
-        return r.json()["candidates"][0]["content"]["parts"][0]["text"]
+        data = r.json()
+        record(feature, "gemini", data)
+        return data["candidates"][0]["content"]["parts"][0]["text"]
     except (httpx.HTTPError, KeyError, IndexError, ValueError):
+        record(feature, "rules", ok=False)
         return None
 
 
@@ -116,7 +123,7 @@ async def triage(text: str, patient: dict, zone: str, weeks, signs: dict, lang: 
     raw = await _gemini(TRIAGE_PROMPT.format(
         name=patient.get("full_name"), weeks=weeks or "?", zone=zone, text=text.replace('"', "'"),
         danger=", ".join(signs[s] for s in danger) or "yöq", signs=", ".join(signs),
-        lang_name="rus" if lang == "ru" else "özbek (lotin)"), schema, 0.3)
+        lang_name="rus" if lang == "ru" else "özbek (lotin)"), schema, 0.3, "triage")
     if raw:
         try:
             d = json.loads(raw)
@@ -161,7 +168,7 @@ async def intake(text: str, districts: list[str], signs: dict) -> dict:
         "phone": {"type": "STRING", "nullable": True}, "district": {"type": "STRING", "nullable": True, "enum": districts},
         "ga_weeks": {"type": "NUMBER", "nullable": True}, "complaint": {"type": "STRING", "nullable": True},
         "plan": {"type": "STRING", "enum": ["bepul", "premium"]}}}
-    raw = await _gemini(INTAKE_PROMPT.format(text=text.replace('"', "'"), districts=", ".join(districts)), schema, 0)
+    raw = await _gemini(INTAKE_PROMPT.format(text=text.replace('"', "'"), districts=", ".join(districts)), schema, 0, "intake")
     got = {}
     if raw:
         try:
@@ -218,7 +225,7 @@ Ma'lumot (JSON): {data}
 
 async def summary(data: dict, lang: str = "uz") -> dict:
     raw = await _gemini(SUMMARY_PROMPT.format(lang_name="rus" if lang == "ru" else "özbek (lotin)",
-                                              data=json.dumps(data, ensure_ascii=False, default=str)[:6000]), None, 0.2)
+                                              data=json.dumps(data, ensure_ascii=False, default=str)[:6000]), None, 0.2, "summary")
     if raw:
         return {"text": raw.strip() if lang == "ru" else to_new(raw.strip()), "source": "gemini"}
     return {"text": _summary_rules(data, lang), "source": "rules"}

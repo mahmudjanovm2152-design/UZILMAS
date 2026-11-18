@@ -113,6 +113,18 @@ CREATE TABLE IF NOT EXISTS messages (
     source          TEXT,                      -- rules | gemini
     created_at      TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS ai_usage (
+    id              INTEGER PRIMARY KEY,
+    feature         TEXT NOT NULL,             -- intake | triage | summary | vision | stt | parse
+    source          TEXT NOT NULL,             -- gemini | rules
+    model           TEXT,
+    tokens_in       INTEGER DEFAULT 0,
+    tokens_out      INTEGER DEFAULT 0,
+    tokens_think    INTEGER DEFAULT 0,
+    cost_usd        REAL DEFAULT 0,
+    ok              INTEGER DEFAULT 1,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
 """
 
 # Eski bazalarga yangi ustunlar (ALTER TABLE ... ADD COLUMN — mavjud bölsa öziga tegmaydi)

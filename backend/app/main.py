@@ -551,21 +551,22 @@ def critical_ack(aid: int, body: CriticalAckIn, request: Request):
 
 
 # ---------- Qabulxona ----------
-PRICE_VISIT = 550_000           # söm, xususiy klinika qabuli (Toşkent, 2026)
-PREPAY_SHARE = 0.5              # premium: 50% oldindan
+PRICE_VISIT = 250_000           # söm, Premium tarif (xususiy klinika)
+PREPAY_SHARE = 0.5              # premium: 50% oldindan (125 000 söm)
+UZILMAS_SHARE = float(__import__("os").environ.get("UZILMAS_SHARE", "0.2"))   # Uzilmas ulushi (gipoteza): 20%
 NURSES = ["M. Ahmedova", "G. Usmonova", "S. Rasulova", "N. Tursunova"]
 DOCTORS = ["Dr. A. Sodiqov", "Dr. F. Xudoyberdiyeva", "Dr. B. Qosimov", "Dr. Z. Mamatova"]
 PLANS = {
-    "bepul": {"uz": ["Patronaj: har 7/14/28 kunda (zonaga qarab)", "Qizil zona — mutaxassisga signal",
-                     "Jonli zanjir va eskalatsiya", "AI yordamçi (savol-javob)"],
-              "ru": ["Патронаж: каждые 7/14/28 дней (по зоне)", "Красная зона — сигнал специалисту",
-                     "Живая цепочка и эскалация", "AI-помощник (вопросы)"]},
-    "premium": {"uz": ["Şaxsiy oilaviy şifokor — 24 soat içida uyga keladi", "Patronaj 2 baravar tez-tez: har 3/7/14 kunda",
-                       "Har hafta AI tekşiruvi + şifokor köradi", "Qizil signal — şaxsiy şifokorga ham, 2 soatda kritik",
-                       "50% oldindan tölov — vizit kafolatlangan"],
-                "ru": ["Личный семейный врач — визит на дом в течение 24 часов", "Патронаж в 2 раза чаще: каждые 3/7/14 дней",
-                       "Еженедельная AI-проверка + просмотр врачом", "Красный сигнал — и личному врачу, через 2 часа критично",
-                       "Предоплата 50% — визит гарантирован"]},
+    "bepul": {"uz": ["Klinikaning odatdagi qabuliga kiradi — qöşimça tölov yöq", "Patronaj: har 7/14/28 kunda (zonaga qarab)",
+                     "Qizil zona — şifokorga signal va eskalatsiya", "AI yordamçi (savol-javob)"],
+              "ru": ["Входит в обычный приём клиники — без доплаты", "Патронаж: каждые 7/14/28 дней (по зоне)",
+                     "Красная зона — сигнал врачу и эскалация", "AI-помощник (вопросы)"]},
+    "premium": {"uz": ["250 000 söm — 50% (125 000 söm) oldindan", "Şaxsiy oilaviy şifokor — 24 soat içida uyga keladi",
+                       "Patronaj 2 baravar tez-tez: har 3/7/14 kunda", "Har hafta AI tekşiruvi + şifokor köradi",
+                       "Qizil signal — şaxsiy şifokorga ham, 2 soatda kritik"],
+                "ru": ["250 000 сум — 50% (125 000 сум) предоплата", "Личный семейный врач — визит на дом в течение 24 часов",
+                       "Патронаж в 2 раза чаще: каждые 3/7/14 дней", "Еженедельная AI-проверка + просмотр врачом",
+                       "Красный сигнал — и личному врачу, через 2 часа критично"]},
 }
 
 
@@ -721,6 +722,110 @@ def appointment_status(aid: int, body: ApptStatusIn, request: Request):
         return dict(c.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone())
 
 
+# ---------- Statistika (boş şifokor / klinika rahbari) ----------
+MARKET = {  # xususiy sektor: rasmiy manbalar (pitç va hakamlar uçun)
+    "private_clinics_2026": 8700, "private_clinics_2016": 3200, "private_beds_share": [12, 31],
+    "new_private_2025": 1329, "new_private_tashkent_2025": 251, "births_2025": 879_599, "births_tashkent_2025": 62_318,
+    "sources": [["spot.uz — Prezident taqdimoti, 2026-05-01", "https://www.spot.uz/ru/2026/05/01/private-healthcare/"],
+                ["podrobno.uz — 2025-yilda 1329 xususiy klinika", "https://podrobno.uz/cat/obchestvo/svyshe-1300-chastnykh-klinik-otkrylis-v-uzbekistane-za-god/"],
+                ["stat.uz — 2025-yil tuğilişlar", "https://stat.uz/uz/matbuot-markazi/qo-mita-yangiliklar/66611"],
+                ["Gemini API narxlari", "https://ai.google.dev/gemini-api/docs/pricing"]],
+}
+
+
+def _mins(a: Optional[str], b: Optional[str]) -> Optional[float]:
+    try:
+        return (datetime.fromisoformat(b[:19]) - datetime.fromisoformat(a[:19])).total_seconds() / 60
+    except (TypeError, ValueError):
+        return None
+
+
+@app.get("/api/analytics")
+def analytics(lang: str = "uz"):
+    from . import usage
+    lang = _lang(lang)
+    pts = _all_patients(lang=lang)
+    with session() as c:
+        ap = [dict(r) for r in c.execute("SELECT * FROM appointments")]
+        al = [dict(r) for r in c.execute("SELECT a.*, p.family_doctor FROM alerts a JOIN patients p ON p.id=a.patient_id")]
+        ai_rows = [dict(r) for r in c.execute(
+            """SELECT feature, source, COUNT(*) n, SUM(tokens_in) tin, SUM(tokens_out) tout, SUM(tokens_think) tth,
+                      SUM(cost_usd) cost, SUM(ok=0) errors FROM ai_usage GROUP BY feature, source""")]
+        msgs = c.execute("SELECT COUNT(*) n, SUM(danger != '[]') d FROM messages").fetchone()
+    # bemorlar va tariflar
+    prem = [p for p in pts if p["plan"] == "premium"]
+    plan = {"total": len(pts), "premium": len(prem), "standart": len(pts) - len(prem),
+            "premium_share": round(100 * len(prem) / max(len(pts), 1), 1),
+            "new_7d": sum(1 for p in pts if p.get("created_at") and _mins(p["created_at"], datetime.now().isoformat()) < 7 * 1440)}
+    # pul (faqat Premium; Standart — klinika qabuli narxiga kiradi)
+    st = Counter(a["status"] for a in ap)
+    pa = [a for a in ap if a["plan"] == "premium"]
+    came = sum(a["price"] for a in pa if a["status"] == "came")
+    prepaid_open = sum(a["prepaid"] for a in pa if a["status"] in ("scheduled", "moved"))
+    forfeited = sum(a["prepaid"] for a in pa if a["status"] == "no_show")
+    revenue = came + prepaid_open + forfeited
+    money = {"price": PRICE_VISIT, "prepay": int(PRICE_VISIT * PREPAY_SHARE), "premium_appts": len(pa),
+             "collected": revenue, "paid_in_full": came, "prepaid_open": prepaid_open, "forfeited": forfeited,
+             "expected_rest": sum(a["price"] - a["prepaid"] for a in pa if a["status"] == "scheduled"),
+             "uzilmas_share": UZILMAS_SHARE, "uzilmas_revenue": int(revenue * UZILMAS_SHARE)}
+
+    def noshow(rows):
+        done = [a for a in rows if a["status"] in ("came", "no_show")]
+        return round(100 * sum(a["status"] == "no_show" for a in done) / len(done), 1) if done else None
+    appts = {"by_status": {k: st.get(k, 0) for k in ("scheduled", "came", "no_show", "moved")},
+             "noshow_rate": noshow(ap), "noshow_premium": noshow(pa), "noshow_standart": noshow([a for a in ap if a["plan"] != "premium"])}
+    # signallar va javob tezligi
+    red = [a for a in al if a["kind"] == "red_zone"]
+    ack_m = [m for m in (_mins(a["created_at"], a["acknowledged_at"]) for a in red if a["acknowledged_at"]) if m is not None and m >= 0]
+    by_doc: dict = {}
+    for a in al:
+        d = by_doc.setdefault(a["family_doctor"] or "—", {"alerts": 0, "open": 0, "ack_min": []})
+        d["alerts"] += 1
+        if not a["acknowledged_at"]:
+            d["open"] += 1
+        m = _mins(a["created_at"], a["acknowledged_at"]) if a["acknowledged_at"] else None
+        if m is not None and m >= 0:
+            d["ack_min"].append(m)
+    staff = []
+    for name, d in sorted(by_doc.items()):
+        staff.append({"name": name, "patients": sum(1 for p in pts if p.get("family_doctor") == name),
+                      "alerts": d["alerts"], "open": d["open"],
+                      "avg_ack_min": round(sum(d["ack_min"]) / len(d["ack_min"]), 1) if d["ack_min"] else None})
+    signals = {"red_total": len(red), "red_acked": len(ack_m), "avg_ack_min": round(sum(ack_m) / len(ack_m), 1) if ack_m else None,
+               "median_ack_min": round(sorted(ack_m)[len(ack_m) // 2], 1) if ack_m else None,
+               "escalated": sum(1 for a in al if a["escalated_at"]), "critical": sum(1 for a in al if a.get("critical_at")),
+               "calls_103": sum(1 for a in al if "103" in (a.get("critical_ack_by") or "")),
+               "active_calls": sum(1 for a in al if a["kind"] == "active_call"),
+               "patient_msgs": msgs["n"] or 0, "patient_danger_msgs": msgs["d"] or 0}
+    # AI sarfi
+    pr = usage.prices()
+    feats = {}
+    for r in ai_rows:
+        f = feats.setdefault(r["feature"], {"name": usage.FEATURES.get(r["feature"], (r["feature"],) * 2)[1 if lang == "ru" else 0],
+                                            "requests": 0, "gemini": 0, "rules": 0, "tokens_in": 0, "tokens_out": 0,
+                                            "tokens_think": 0, "cost_usd": 0.0, "errors": 0})
+        f["requests"] += r["n"]
+        f[r["source"] if r["source"] in ("gemini", "rules") else "rules"] += r["n"]
+        for k, col in (("tokens_in", "tin"), ("tokens_out", "tout"), ("tokens_think", "tth"), ("errors", "errors")):
+            f[k] += r[col] or 0
+        f["cost_usd"] += r["cost"] or 0
+    tot = {k: sum(f[k] for f in feats.values()) for k in ("requests", "gemini", "rules", "tokens_in", "tokens_out", "tokens_think", "errors")}
+    tot["cost_usd"] = round(sum(f["cost_usd"] for f in feats.values()), 6)
+    tot["cost_uzs"] = round(tot["cost_usd"] * pr["usd_uzs"])
+    tot["cost_per_request_uzs"] = round(tot["cost_uzs"] / tot["gemini"], 1) if tot["gemini"] else 0
+    tot["cost_per_patient_uzs"] = round(tot["cost_uzs"] / max(len(pts), 1), 2)
+    for f in feats.values():
+        f["cost_usd"] = round(f["cost_usd"], 6)
+        f["cost_uzs"] = round(f["cost_usd"] * pr["usd_uzs"], 1)
+    # xavf
+    risk = Counter(r["level"] for r in risk_list(limit=10_000, lang=lang))
+    return {"plan": plan, "money": money, "appointments": appts, "signals": signals, "staff": staff,
+            "zones": Counter(p["zone"] for p in pts), "chains": Counter(p["chain_status"] for p in pts),
+            "risk": {k: risk.get(k, 0) for k in ("high", "mid", "low")},
+            "ai": {"features": feats, "total": tot, "prices": pr}, "market": MARKET,
+            "generated_at": notify.now().isoformat(sep=" ")}
+
+
 # ---------- Bemor kabineti ----------
 def _my_pid(request: Request) -> int:
     u = getattr(request.state, "user", None)
@@ -811,7 +916,7 @@ if STATIC.exists():
     @app.get("/{page}", include_in_schema=False)
     def page(page: str):
         f = STATIC / f"{page}.html"
-        if page in ("dashboard", "nurse", "doctor", "app", "setup", "login", "reception", "patient") and f.exists():
+        if page in ("dashboard", "nurse", "doctor", "app", "setup", "login", "reception", "patient", "analytics") and f.exists():
             return FileResponse(f)
         if page in ("sw.js", "manifest.webmanifest"):
             return FileResponse(STATIC / page)

@@ -127,9 +127,9 @@ api("/api/reception/plans").then(r => {
   PRICE = r.price;
   document.getElementById("plans").innerHTML = ["bepul", "premium"].map(k => `
     <div class="plan ${k} ${k === PLAN ? "on" : ""}" data-k="${k}">
-      <h4>${k === "premium" ? ic("crown", 16) + " " + t("Pullik — Premium") : t("Bepul")}<span class="plan-badge ${k}">${k === "premium" ? t("50% oldindan") : t("davlat kafolati")}</span></h4>
-      <div class="price">${k === "premium" ? fmtSum(r.price) : "0 " + t("söm")}</div>
-      ${k === "premium" ? `<div class="muted" style="font-size:12.5px">${t("Hozir tölanadi:")} <b style="color:var(--ink)">${fmtSum(r.price * r.prepay_share)}</b></div>` : `<div class="muted" style="font-size:12.5px">${t("Asosiy zanjir")}</div>`}
+      <h4>${k === "premium" ? ic("crown", 16) + " " + t("Premium") : t("Standart")}<span class="plan-badge ${k}">${k === "premium" ? t("50% oldindan") : t("klinika qabuliga kiradi")}</span></h4>
+      <div class="price">${k === "premium" ? fmtSum(r.price) : t("Standart")}</div>
+      ${k === "premium" ? `<div class="muted" style="font-size:12.5px">${t("Hozir tölanadi:")} <b style="color:var(--ink)">${fmtSum(r.price * r.prepay_share)}</b></div>` : `<div class="muted" style="font-size:12.5px">${t("Qöşimça tölov yöq")}</div>`}
       <ul>${r.plans[k].map(x => `<li>${esc(x)}</li>`).join("")}</ul>
     </div>`).join("");
   document.querySelectorAll(".plan").forEach(el => el.onclick = () => setPlan(el.dataset.k));
@@ -188,7 +188,7 @@ document.getElementById("form").onsubmit = async e => {
         <div><span>${t("Javobgar hamşira")}</span>${ic("user", 15)} ${esc(r.nurse)}</div>
         <div><span>${t("Javobgar oilaviy şifokor")}</span>${ic("steth", 15)} ${esc(r.family_doctor)}</div>
         <div><span>${t("Qabul")}</span>${ic("clock", 15)} ${esc(fmtTime(r.appointment.at))}</div>
-        <div><span>${t("Tölov")}</span>${r.plan === "premium" ? `${fmtSum(r.appointment.prepaid)} ${t("tölandi")} · ${t("qolgani")} ${fmtSum(r.appointment.price - r.appointment.prepaid)}` : t("Bepul")}</div>
+        <div><span>${t("Tölov")}</span>${r.plan === "premium" ? `${fmtSum(r.appointment.prepaid)} ${t("tölandi")} · ${t("qolgani")} ${fmtSum(r.appointment.price - r.appointment.prepaid)}` : t("Standart — klinika qabuli narxida")}</div>
       </div>
       <div class="muted" style="font-size:12.5px;margin-top:10px">${ic("spark", 14)} ${t("Nega aynan ular:")} ${esc(r.why)}</div>
       ${r.plan === "premium" ? `<div class="muted" style="font-size:12.5px;margin-top:4px">${ic("home", 14)} ${t("Şaxsiy oilaviy şifokor 24 soat içida uyga boradi — vazifa yuborildi.")}</div>` : ""}

@@ -54,10 +54,20 @@ Demo parollarni almaştiriş: `.env` da `UZILMAS_PASS_QABUL=...` (har bir login 
 
 AI zonani pasaytira olmaydi; Gemini kaliti bölmasa ham hammasi qoidalar asosida işlaydi.
 
-## Bepul va Premium
+## Standart va Premium (faqat xususiy klinikalar)
 
-- **Bepul** — asosiy zanjir: patronaj 7/14/28 kun, qizil zona signali, eskalatsiya, AI yordamçi.
-- **Premium (pullik)** — 50% oldindan tölov, şaxsiy oilaviy şifokor 24 soat içida uyga, patronaj 3/7/14 kun, har hafta AI tekşiruvi. Bemor kelmasa — oldindan tölov qaytarilmaydi va u "Bugun qöng‘iroq qiling" röyxatiga tuşadi.
+- **Standart** — klinikaning odatdagi qabuliga kiradi, qöşimça tölov yöq: patronaj 7/14/28 kun, qizil zona signali, eskalatsiya, AI yordamçi.
+- **Premium — 250 000 söm**, 50% (125 000 söm) oldindan: şaxsiy oilaviy şifokor 24 soat içida uyga, patronaj 3/7/14 kun, har hafta AI tekşiruvi. Bemor kelmasa — oldindan tölov qaytarilmaydi va u "Bugun qöng‘iroq qiling" röyxatiga tuşadi.
+- Uzilmas ulushi — klinikaga tuşgan puldan 20% (`UZILMAS_SHARE`, gipoteza).
+
+## Statistika (`/analytics`, boş şifokor va şifokor)
+
+- Bemorlar, Premium ulushi, klinika daromadi, oldindan tölovlar, Uzilmas ulushi.
+- Qabullar: keldi / kelmadi / kölçirildi, kelmaslik foizi.
+- Signallar: javob vaqti (daqiqa), kritik holatlar, xodimlar kesimida.
+- **AI sarfi**: har bir funksiya (intake, triaj, xulosa, blanka, ovoz) böyiça so‘rovlar, kiriş/çiqiş/fikrlaş tokenlari, narx ($ va söm). Faqat haqiqiy so‘rovlar hisoblanadi.
+- Narxlar `.env` orqali: `AI_PRICE_IN_USD=0.30`, `AI_PRICE_OUT_USD=2.50`, `USD_UZS=12000`.
+- Xususiy bozor bloki manbalar bilan.
 
 ## Muammo → Yeçim
 | № | Vazirlik muammosi | Uzilmas |

@@ -124,8 +124,11 @@ async def transcribe(audio: bytes, mime: str) -> tuple[str, str]:
     async with httpx.AsyncClient(timeout=60) as c:
         r = await c.post(GEMINI_URL.format(model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")),
                          json=body, headers={"x-goog-api-key": gkey})
+    from .usage import record
     if r.status_code != 200:
+        record("stt", "gemini", ok=False)
         raise RuntimeError(f"Nutqni tanib bölmadi: {r.status_code}")
+    record("stt", "gemini", r.json())
     return r.json()["candidates"][0]["content"]["parts"][0]["text"].strip(), "gemini"
 
 
@@ -149,12 +152,16 @@ async def parse_text(text: str, signs: dict) -> dict:
                 r = await c.post(GEMINI_URL.format(model=os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")),
                                  json=body, headers={"x-goog-api-key": gkey})
             if r.status_code == 200:
+                from .usage import record
+                record("parse", "gemini", r.json())
                 parsed = json.loads(r.json()["candidates"][0]["content"]["parts"][0]["text"])
         except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError):
             parsed = None
     source = "gemini"
     if not parsed:
         parsed, source = regex_parse(text), "rules"
+        from .usage import record
+        record("parse", "rules")
     out = postprocess(parsed)
     out["symptoms"] = [s for s in parsed.get("symptoms", []) if s in signs]
     out["parser"] = source

@@ -96,3 +96,18 @@ def test_ai_summary_and_intake_fallback(client):
     assert r["district"] == "Çilonzor" and r["age"] == 27 and r["ga_weeks"] == 30
     assert r["sbp"] == 150 and r["dbp"] == 95 and r["plan"] == "premium"
     assert "Dilfuza" in (r["full_name"] or "")
+
+
+def test_analytics_and_ai_usage(client):
+    h = H(client, "bosh", "Bosh2026")
+    q = H(client, "qabul", "Qabul2026")
+    client.post("/api/ai/intake", json={"text": "Ismi Lola Karimova, 22 yoş, Sergeli, 20 hafta"}, headers=q)
+    r = client.post("/api/reception/register", json={"full_name": "Lola Karimova", "district": "Sergeli", "plan": "premium"},
+                    headers=q).json()
+    assert r["appointment"]["price"] == 250_000 and r["appointment"]["prepaid"] == 125_000
+    a = client.get("/api/analytics", headers=h).json()
+    assert a["money"]["price"] == 250_000 and a["money"]["collected"] >= 125_000
+    assert a["money"]["uzilmas_revenue"] == int(a["money"]["collected"] * 0.2)
+    assert a["ai"]["total"]["requests"] >= 2          # intake + parse (qoidalar)
+    assert a["ai"]["features"]["intake"]["rules"] >= 1
+    assert a["market"]["private_clinics_2026"] == 8700

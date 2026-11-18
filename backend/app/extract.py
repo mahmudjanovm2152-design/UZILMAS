@@ -134,6 +134,8 @@ async def extract_from_image(image: bytes, mime: str = "image/jpeg",
         if r.status_code != 200:
             raise RuntimeError(f"Gemini xatosi {r.status_code}: {r.text[:200]}")
         data = r.json()
+        from .usage import record
+        record("vision", "gemini", data)
     except httpx.HTTPError as e:
         raise RuntimeError(f"Gemini bilan aloqa yöq: {e}") from e
     finally:

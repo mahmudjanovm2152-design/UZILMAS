@@ -243,13 +243,14 @@ def _appointments(c, rnd, n: int) -> None:
     fmt = lambda d: d.strftime("%Y-%m-%d %H:%M")
     for pid in range(1, n + 1):
         premium = rnd.random() < 0.3
-        price = 550_000 if premium else 0
+        price = 250_000 if premium else 0
         if premium:
             c.execute("UPDATE patients SET plan='premium' WHERE id=?", (pid,))
-        if rnd.random() < 0.18:   # oldingi qabulga kelmagan
-            c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, status, created_by) VALUES (?,?,?,?,?,?,?)",
-                      (pid, fmt(nowdt - timedelta(days=rnd.randint(3, 12), hours=-10)), "premium" if premium else "bepul",
-                       price, price // 2, "no_show", "Qabulxona"))
+        # oldingi qabul: aksariyati kelgan, ~18% — kelmagan
+        status = "no_show" if rnd.random() < 0.18 else "came"
+        c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, status, created_by) VALUES (?,?,?,?,?,?,?)",
+                  (pid, fmt(nowdt - timedelta(days=rnd.randint(3, 12), hours=-10)), "premium" if premium else "bepul",
+                   price, price // 2, status, "Qabulxona"))
         c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, created_by) VALUES (?,?,?,?,?,?)",
                   (pid, fmt((nowdt + timedelta(days=rnd.randint(1, 14))).replace(hour=rnd.choice([9, 10, 11, 14, 15]), minute=0)),
                    "premium" if premium else "bepul", price, price // 2, "Qabulxona"))
@@ -257,7 +258,7 @@ def _appointments(c, rnd, n: int) -> None:
     c.execute("UPDATE patients SET plan='premium' WHERE id=101")
     c.execute("DELETE FROM appointments WHERE patient_id IN (101,102,103)")
     c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, created_by) VALUES (?,?,?,?,?,?)",
-              (101, fmt((nowdt + timedelta(days=3)).replace(hour=10, minute=0)), "premium", 550_000, 275_000, "Qabulxona"))
+              (101, fmt((nowdt + timedelta(days=3)).replace(hour=10, minute=0)), "premium", 250_000, 125_000, "Qabulxona"))
 
 
 if __name__ == "__main__":
