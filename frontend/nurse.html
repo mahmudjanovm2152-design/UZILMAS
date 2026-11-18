@@ -1,0 +1,336 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<meta name="theme-color" content="#0A6CF5">
+<link rel="manifest" href="/manifest.webmanifest">
+<title>Uzilmas · Hamşira</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .app { max-width: 560px; margin: 0 auto; padding: 18px 16px 120px; }
+  .net { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 600; height: 28px; padding: 0 10px; border-radius: 999px; }
+  .net svg { width: 15px; height: 15px; }
+  .net.on { background: var(--green-50); color: var(--green); }
+  .net.off { background: var(--red-50); color: var(--red); }
+  .queue { display: none; margin-top: 14px; background: var(--amber-50); border: 1px solid var(--amber-100); border-radius: 12px;
+           padding: 10px 12px; font-weight: 600; color: var(--amber); align-items: center; justify-content: space-between; gap: 10px; }
+  .queue.show { display: flex; } .queue span { display: flex; gap: 8px; align-items: center; }
+  .steps-mini { display: flex; gap: 6px; margin: 14px 0 4px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+  .steps-mini b { color: var(--blue); }
+  .pt { display: flex; align-items: center; gap: 12px; padding: 14px; background: #fff; border: 1px solid var(--line); border-radius: 12px;
+        margin-bottom: 8px; cursor: pointer; transition: border-color .15s, box-shadow .15s; }
+  .pt:hover { border-color: var(--blue-200); box-shadow: var(--shadow); }
+  .pt .nm { font-weight: 600; color: var(--ink); } .pt .sm { font-size: 12.5px; color: var(--muted); }
+  .pt .chev { color: var(--faint); }
+  .back { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--blue); cursor: pointer; font-size: 14px; }
+  .vh { margin: 12px 0 4px; } .vh h1 { font-size: 24px; }
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 16px 0 12px; background: var(--line-2); padding: 4px; border-radius: 12px; }
+  .mode { border-radius: 9px; padding: 10px 6px; text-align: center; font-weight: 600; font-size: 13.5px; color: var(--muted);
+          display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; }
+  .mode svg { width: 20px; height: 20px; }
+  .mode.on { background: #fff; color: var(--blue); box-shadow: var(--shadow-sm); }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .signs { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .signs label { display: inline-flex; align-items: center; gap: 6px; background: #fff; border: 1px solid var(--line); border-radius: 999px;
+                 padding: 6px 12px; font-size: 13px; color: var(--ink); cursor: pointer; }
+  .signs label:has(input:checked) { background: var(--red-50); border-color: var(--red-100); color: var(--red); }
+  .signs input { accent-color: var(--red); margin: 0; }
+  .preview { margin-top: 14px; border-radius: 14px; padding: 16px 18px; animation: slidein .3s; border: 1px solid; }
+  .preview .lbl { font-size: 12.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; opacity: .8; }
+  .preview .z { font-size: 22px; font-weight: 700; margin-top: 4px; display: flex; align-items: center; gap: 8px; color: var(--ink); }
+  .preview ul { margin: 10px 0 0; padding-left: 18px; color: var(--text); font-size: 14px; }
+  .preview .note { margin-top: 10px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
+  .preview.red { background: var(--red-50); border-color: var(--red-100); } .preview.red .note { color: var(--red); }
+  .preview.yellow { background: var(--amber-50); border-color: var(--amber-100); }
+  .preview.green { background: var(--green-50); border-color: #D1FADF; }
+  .preview.wait { background: var(--blue-50); border-color: var(--blue-100); color: var(--blue-700); font-weight: 600; display: flex; gap: 10px; align-items: center; }
+  .warnbox { display: flex; gap: 8px; background: var(--amber-50); color: var(--amber); border: 1px solid var(--amber-100); border-radius: 10px;
+             padding: 10px 12px; margin-top: 10px; font-size: 13.5px; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px 18px; background: rgba(255,255,255,.95);
+         backdrop-filter: blur(8px); border-top: 1px solid var(--line); z-index: 900; }
+  .bar .btn { max-width: 528px; display: flex; margin: 0 auto; }
+  .rec { width: 84px; height: 84px; border-radius: 50%; margin: 8px auto 12px; display: flex; align-items: center; justify-content: center;
+         background: var(--blue); color: #fff; box-shadow: 0 0 0 8px var(--blue-50); cursor: pointer; }
+  .rec svg { width: 32px; height: 32px; }
+  .rec.on { animation: pulse 1.1s infinite; background: var(--red); box-shadow: none; }
+  .hint { font-size: 13.5px; color: var(--muted); text-align: center; line-height: 1.5; margin: 0; }
+  .imgprev { width: 100%; border-radius: 10px; margin-top: 12px; max-height: 260px; object-fit: cover; border: 1px solid var(--line); }
+  .spin { width: 18px; height: 18px; border: 2.5px solid var(--blue-200); border-top-color: var(--blue); border-radius: 50%; animation: rot .8s linear infinite; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  .card-b > b { color: var(--ink); }
+  details summary { cursor: pointer; }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="app">
+  <div class="queue" id="queue"><span id="q-ic"><span id="qn">0</span> <span data-t>ta yozuv internet kutmoqda</span></span>
+    <button class="btn btn-secondary" style="height:34px" onclick="syncQueue(true)" data-t>Yuboriş</button></div>
+
+  <!-- 1. Bemorlar röyxati -->
+  <section id="s-list">
+    <div class="page-head"><div><h1 data-t>Bugungi taşriflar</h1>
+      <p data-t>Bemorni tanlang va taşrif ma'lumotlarini kiriting. Internet bölmasa ham saqlanadi.</p></div></div>
+    <div class="field" style="margin-top:16px"><label for="nurse" data-t>Hamşira</label><select class="input" id="nurse"></select></div>
+    <div style="margin-top:14px" id="plist"><div class="muted" data-t>Yuklanmoqda…</div></div>
+  </section>
+
+  <!-- 2. Taşrif -->
+  <section id="s-visit" class="hidden">
+    <span class="back" onclick="showList()" id="backbtn"><span data-t>Röyxat</span></span>
+    <div class="vh"><h1 id="v-name"></h1><div class="muted" id="v-sub"></div></div>
+    <div class="steps-mini"><b>1</b> <span data-t>Usulni tanlang</span> <span>→</span> <b>2</b> <span data-t>Raqamlarni tekşiring</span> <span>→</span> <b>3</b> <span data-t>Tasdiqlang</span></div>
+    <div class="modes">
+      <div class="mode on" data-m="photo" id="md1"><span data-t>Tahlil rasmi</span></div>
+      <div class="mode" data-m="voice" id="md2"><span data-t>Ovoz bilan</span></div>
+      <div class="mode" data-m="manual" id="md3"><span data-t>Qölda</span></div>
+    </div>
+
+    <div id="m-photo" class="card card-b">
+      <b data-t>Tahlil blankasini suratga oling</b>
+      <p class="muted" style="margin:4px 0 14px;font-size:14px" data-t>AI raqamlarni öqiydi. Işonçsiz raqamni özi töldirmaydi — sizdan söraydi.</p>
+      <input type="file" id="photo" accept="image/*" capture="environment" class="hidden">
+      <button class="btn btn-primary btn-block" id="photobtn" onclick="document.getElementById('photo').click()"><span data-t>Suratga oliş yoki tanlaş</span></button>
+      <img id="imgprev" class="imgprev hidden">
+    </div>
+
+    <div id="m-voice" class="card card-b hidden">
+      <div class="rec" id="rec"></div>
+      <p class="hint" data-t>Tugmani bosing va özbek tilida ayting, masalan:<br><i>"Bosim yuz ellik ikki ga töqson sakkiz, gemoglobin yuz ön ikki,
+        siydikda oqsil nol butun olti, öttiz uç hafta, boş oğriği bor"</i></p>
+      <details style="margin-top:12px"><summary class="muted" style="font-size:13.5px" data-t>Yoki matn bilan yozing</summary>
+        <textarea class="input" id="vtext" rows="3" style="margin-top:8px" placeholder="bosim 150 ga 95, gemoglobin 108…" data-tp></textarea>
+        <button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="sendText()" data-t>Matndan öqiş</button>
+      </details>
+    </div>
+
+    <div class="card card-b" style="margin-top:12px" id="form">
+      <b data-t>Körsatkiçlar</b> <span class="muted" style="font-size:13px" data-t>— tekşiring va kerak bölsa tuzating</span>
+      <div class="grid2" style="margin-top:12px">
+        <div class="field"><label for="sbp" data-t>Bosim (yuqori)</label><input class="input" type="number" id="sbp" inputmode="numeric"></div>
+        <div class="field"><label for="dbp" data-t>Bosim (pastki)</label><input class="input" type="number" id="dbp" inputmode="numeric"></div>
+        <div class="field"><label for="hb_g_l" data-t>Gemoglobin, g/l</label><input class="input" type="number" id="hb_g_l" inputmode="decimal"></div>
+        <div class="field"><label for="protein_g_l" data-t>Siydikda oqsil, g/l</label><input class="input" type="number" step="0.1" id="protein_g_l" inputmode="decimal"></div>
+        <div class="field"><label for="glucose_fasting" data-t>Glyukoza, mmol/l</label><input class="input" type="number" step="0.1" id="glucose_fasting" inputmode="decimal"></div>
+        <div class="field"><label for="ga_weeks" data-t>Muddat, hafta</label><input class="input" type="number" id="ga_weeks" inputmode="numeric"></div>
+      </div>
+      <div class="field" style="margin-top:14px"><label data-t>Xavfli belgilar (bölsa belgilang)</label></div>
+      <div class="signs" id="signs"></div>
+      <div id="warns"></div>
+    </div>
+    <div id="preview"></div>
+  </section>
+</div>
+<div class="bar hidden" id="bar"><button class="btn btn-primary btn-lg btn-block" id="save" onclick="save()"><span data-t>Tasdiqlaş va saqlaş</span></button></div>
+
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+topbar("/nurse", '<span class="net on" id="net"></span>');
+i18n();
+guide("nurse", t("Hamşira ilovasi"), t("Patronaj taşrifida bemor ma'lumotini kiritiş uçun."), [
+  [t("Bemorni tanlang"), t("Röyxatda bugungi bemorlaringiz. Qizil — eng xavfli.")],
+  [t("Ma'lumot kiriting"), t("Tahlil rasmini oling (AI öqiydi), ovoz bilan ayting yoki qölda yozing.")],
+  [t("Tekşiring va saqlang"), t("Zona darhol körinadi. Qizil bölsa — mutaxassisga özi xabar boradi. Internet yöq bölsa — keyin özi yuboradi.")],
+]);
+document.getElementById("q-ic").insertAdjacentHTML("afterbegin", ic("wifioff", 16));
+document.getElementById("backbtn").insertAdjacentHTML("afterbegin", ic("back", 16));
+document.getElementById("md1").insertAdjacentHTML("afterbegin", ic("camera"));
+document.getElementById("md2").insertAdjacentHTML("afterbegin", ic("mic"));
+document.getElementById("md3").insertAdjacentHTML("afterbegin", ic("edit"));
+document.getElementById("photobtn").insertAdjacentHTML("afterbegin", ic("camera"));
+document.getElementById("rec").innerHTML = ic("mic");
+document.getElementById("save").insertAdjacentHTML("afterbegin", ic("check"));
+const LS = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+             set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} } };
+const FIELDS = ["sbp", "dbp", "hb_g_l", "protein_g_l", "glucose_fasting", "ga_weeks"];
+let all = [], cur = null, source = "manual";
+
+document.getElementById("signs").innerHTML = Object.entries(SIGNS)
+  .map(([k, v]) => `<label><input type="checkbox" value="${k}">${v}</label>`).join("");
+
+// ---------- Tarmoq va navbat ----------
+function setNet() {
+  const on = navigator.onLine, n = document.getElementById("net");
+  n.className = "net " + (on ? "on" : "off"); n.innerHTML = on ? ic("wifi") + t("Onlayn") : ic("wifioff") + t("Oflayn");
+  const q = LS.get("uzilmas_queue", []);
+  document.getElementById("qn").textContent = q.length;
+  document.getElementById("queue").classList.toggle("show", q.length > 0);
+}
+window.addEventListener("online", () => { setNet(); syncQueue(); });
+window.addEventListener("offline", setNet);
+
+async function syncQueue(manual) {
+  const q = LS.get("uzilmas_queue", []);
+  if (!q.length || !navigator.onLine) { if (manual) toast(t("Internet yöq yoki navbat böş")); return; }
+  const left = [];
+  let red = 0;
+  for (const item of q) {
+    try {
+      const r = await api(`/api/patients/${item.pid}/visits`, { method: "POST", body: JSON.stringify(item.body) });
+      if (r.zone_after === "red") red++;
+    } catch (e) { left.push(item); }
+  }
+  LS.set("uzilmas_queue", left); setNet();
+  toast(t("{0} ta yozuv yuborildi", q.length - left.length) + (red ? " · " + t("{0} ta qizil zona — mutaxassis ogohlantirildi", red) : ""), 4000);
+  loadPatients();
+}
+
+// ---------- Röyxat ----------
+async function loadPatients() {
+  try { all = await api("/api/patients"); LS.set("uzilmas_patients", all); }
+  catch (e) { all = LS.get("uzilmas_patients", []); }
+  const nurses = [...new Set(all.map(p => p.nurse))].sort();
+  const sel = document.getElementById("nurse"), saved = LS.get("uzilmas_nurse", nurses[0]);
+  sel.innerHTML = nurses.map(n => `<option ${n === saved ? "selected" : ""}>${esc(n)}</option>`).join("");
+  drawList();
+}
+function drawList() {
+  const n = document.getElementById("nurse").value; LS.set("uzilmas_nurse", n);
+  const mine = all.filter(p => p.nurse === n || p.id > 100);
+  document.getElementById("plist").innerHTML = mine.map(p => `
+    <div class="pt" onclick="openVisit(${p.id})"><span class="dot ${p.zone}"></span>
+      <div style="flex:1"><div class="nm">${esc(p.full_name)}</div>
+      <div class="sm">${t("{0} mahallasi", esc(p.mahalla))}${p.ga_weeks ? " · " + t("{0} hafta", p.ga_weeks) : ""} · ${t("oxirgi:")} ${p.last_visit || "—"}</div></div>
+      ${zonePill(p.zone)}<span class="chev">${ic("arrow", 16)}</span></div>`).join("") || `<div class="muted">${t("Oflayn: röyxat hali yuklanmagan")}</div>`;
+}
+document.getElementById("nurse").onchange = drawList;
+
+function showList() {
+  document.getElementById("s-list").classList.remove("hidden");
+  document.getElementById("s-visit").classList.add("hidden");
+  document.getElementById("bar").classList.add("hidden"); drawList();
+}
+function openVisit(id) {
+  cur = all.find(p => p.id === id);
+  document.getElementById("s-list").classList.add("hidden");
+  document.getElementById("s-visit").classList.remove("hidden");
+  document.getElementById("bar").classList.remove("hidden");
+  document.getElementById("v-name").textContent = cur.full_name;
+  document.getElementById("v-sub").textContent = t("{0} yoş · {1}, {2} mahallasi", cur.age, cur.district, cur.mahalla) + " · " + t("hozir:") + " " + ZONE[cur.zone].uz;
+  FIELDS.forEach(f => { document.getElementById(f).value = ""; });
+  document.getElementById("ga_weeks").value = cur.ga_weeks ? cur.ga_weeks + 3 : "";
+  document.querySelectorAll("#signs input").forEach(c => c.checked = false);
+  document.getElementById("warns").innerHTML = ""; document.getElementById("preview").innerHTML = "";
+  document.getElementById("imgprev").classList.add("hidden");
+  source = "manual"; setMode("photo"); window.scrollTo(0, 0);
+}
+
+// ---------- Rejimlar ----------
+function setMode(m) {
+  document.querySelectorAll(".mode").forEach(x => x.classList.toggle("on", x.dataset.m === m));
+  document.getElementById("m-photo").classList.toggle("hidden", m !== "photo");
+  document.getElementById("m-voice").classList.toggle("hidden", m !== "voice");
+}
+document.querySelectorAll(".mode").forEach(x => x.onclick = () => setMode(x.dataset.m));
+
+function fill(res, src) {
+  source = src;
+  const ex = res.extraction, v = res.draft_visit;
+  FIELDS.forEach(f => {
+    const el = document.getElementById(f), lab = document.querySelector(`label[for=${f}]`);
+    el.value = v[f] ?? "";
+    lab.classList.toggle("warn", v[f] == null && f !== "glucose_fasting");
+  });
+  (v.symptoms || []).forEach(s => { const c = document.querySelector(`#signs input[value=${s}]`); if (c) c.checked = true; });
+  const w = [...(ex.warnings || [])];
+  if (res.name_match === false) w.unshift(t("Blankadagi ism ({0}) bemor ismiga mos kelmaydi — tekşiring!", ex.patient_name));
+  if (ex.transcript) w.unshift(t("Eşitildi:") + ` "${ex.transcript}"`);
+  document.getElementById("warns").innerHTML = w.map(x => `<div class="warnbox">${ic("alert", 16)}<span>${esc(x)}</span></div>`).join("");
+  showPreview(res.preview_assessment, res.zone_before, true);
+}
+
+function showPreview(a, before, draft) {
+  const z = a.zone;
+  document.getElementById("preview").innerHTML = `<div class="preview ${z}">
+    <div class="lbl">${draft ? t("Tasdiqlansa zona") : t("Saqlandi · zona")}</div>
+    <div class="z"><span class="dot ${before}"></span>${ZONE[before].uz} ${ic("arrow", 18)} <span class="dot ${z}"></span>${ZONE[z].long}</div>
+    <ul>${a.findings.slice(0, 4).map(f => `<li>${esc(f.reason)}</li>`).join("") || `<li>${t("Xavf belgilari aniqlanmadi")}</li>`}</ul>
+    ${a.needs_review.length ? `<div class="note">${ic("help", 16)}${t("Tekşiriş kerak:")} ${esc(a.needs_review.join(", "))}</div>` : ""}
+    ${!draft && z === "red" ? `<div class="note">${ic("send", 16)}${t("OvaBMU mutaxassisi Telegram orqali ogohlantirildi")}</div>` : ""}
+  </div>`;
+  document.getElementById("preview").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ---------- Rasm ----------
+document.getElementById("photo").onchange = async (e) => {
+  const f = e.target.files[0]; if (!f) return;
+  const img = document.getElementById("imgprev"); img.src = URL.createObjectURL(f); img.classList.remove("hidden");
+  if (!navigator.onLine) { toast(t("Oflayn: rasm öqilmaydi, raqamlarni qölda kiriting")); setMode("manual"); return; }
+  document.getElementById("preview").innerHTML = `<div class="preview wait"><span class="spin"></span>${t("AI tahlilni öqiyapti…")}</div>`;
+  const fd = new FormData(); fd.append("file", f);
+  try { fill(await api(`/api/patients/${cur.id}/extract`, { method: "POST", body: fd }), "photo"); }
+  catch (err) { document.getElementById("preview").innerHTML = ""; toast(t("AI xatosi:") + " " + err.message, 4000); }
+  e.target.value = "";
+};
+
+// ---------- Ovoz ----------
+let rec = null, chunks = [];
+document.getElementById("rec").onclick = async () => {
+  const btn = document.getElementById("rec");
+  if (rec && rec.state === "recording") { rec.stop(); return; }
+  if (!navigator.onLine) { toast(t("Oflayn: ovoz uçun internet kerak, qölda kiriting")); return; }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    rec = new MediaRecorder(stream); chunks = [];
+    rec.ondataavailable = e => chunks.push(e.data);
+    rec.onstop = async () => {
+      btn.classList.remove("on"); btn.innerHTML = ic("mic"); stream.getTracks().forEach(t => t.stop());
+      const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
+      document.getElementById("preview").innerHTML = `<div class="preview wait"><span class="spin"></span>${t("Nutq tanilmoqda…")}</div>`;
+      const fd = new FormData(); fd.append("file", blob, "voice.webm");
+      try { fill(await api(`/api/patients/${cur.id}/voice`, { method: "POST", body: fd }), "voice"); }
+      catch (err) { document.getElementById("preview").innerHTML = ""; toast(t("Nutq xatosi:") + " " + err.message + " — " + t("matn bilan yozing"), 4500); }
+    };
+    rec.start(); btn.classList.add("on"); btn.innerHTML = ic("stop");
+  } catch (e) { toast(t("Mikrofonga ruxsat yöq")); }
+};
+async function sendText() {
+  const txt = document.getElementById("vtext").value.trim(); if (!txt) return;
+  try { fill(await api(`/api/patients/${cur.id}/voice-text`, { method: "POST", body: JSON.stringify({ text: txt }) }), "voice"); }
+  catch (e) { toast(t("Xato:") + " " + e.message); }
+}
+
+// ---------- Saqlaş ----------
+function body() {
+  const b = { date: new Date().toISOString().slice(0, 10), source, client_id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
+              symptoms: [...document.querySelectorAll("#signs input:checked")].map(c => c.value) };
+  FIELDS.forEach(f => { const v = document.getElementById(f).value; b[f] = v === "" ? null : Number(v); });
+  return b;
+}
+function localDanger(b) {   // offline xavfsizlik töri: eng oğir holatlarni internetsiz ham körsatadi
+  const htn = (b.sbp >= 140) || (b.dbp >= 90);
+  return (b.sbp >= 160 || b.dbp >= 110 || (htn && b.protein_g_l >= 0.3) || (b.hb_g_l && b.hb_g_l < 70) || b.symptoms.length);
+}
+async function save() {
+  const b = body();
+  if (b.sbp == null || b.dbp == null) { if (!confirm(t("Bosim kiritilmagan. Baribir saqlansinmi? (zona «tekşiriş kerak» böladi)"))) return; }
+  const btn = document.getElementById("save"); btn.disabled = true;
+  try {
+    if (!navigator.onLine) throw new Error("offline");
+    const r = await api(`/api/patients/${cur.id}/visits`, { method: "POST", body: JSON.stringify(b) });
+    showPreview(r.assessment, r.zone_before, false);
+    toast(r.zone_after === "red" ? t("Saqlandi · mutaxassis ogohlantirildi") : t("Saqlandi"));
+    loadPatients();
+  } catch (e) {
+    if (e.message !== "offline" && navigator.onLine) { toast(t("Xato:") + " " + e.message); btn.disabled = false; return; }
+    b.source = "offline";
+    const q = LS.get("uzilmas_queue", []); q.push({ pid: cur.id, body: b }); LS.set("uzilmas_queue", q); setNet();
+    const danger = localDanger(b);
+    document.getElementById("preview").innerHTML = `<div class="preview ${danger ? "red" : "wait"}" style="display:block">
+      <div class="z">${ic("wifioff", 20)}${t("Navbatga saqlandi")}</div>
+      <div style="margin-top:6px;font-weight:500;color:var(--text)">${t("Internet paydo bölişi bilan avtomatik yuboriladi va zona hisoblanadi.")}</div>
+      ${danger ? `<div class="note">${ic("alert", 16)}${t("Oğir belgilar bor! Kutmang — 103 ga qönğiroq qiling.")}</div>` : ""}</div>`;
+  }
+  btn.disabled = false;
+}
+
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+setNet(); loadPatients(); setInterval(() => navigator.onLine && syncQueue(), 15000);
+</script>
+</body>
+</html>

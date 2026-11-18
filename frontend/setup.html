@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Sozlamalar</title>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .app { max-width: 720px; margin: 0 auto; padding: 28px 20px 60px; }
+  .st { display: grid; gap: 8px; margin: 18px 0 22px; }
+  .st div { display: flex; gap: 10px; align-items: center; font-size: 14.5px; color: var(--ink); }
+  .ok { color: var(--green); } .no { color: var(--red); }
+  .grid { display: grid; gap: 14px; }
+  .field small { color: var(--muted); display: block; margin-top: 4px; font-size: 12.5px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 600px) { .two { grid-template-columns: 1fr; } }
+  .path { font-size: 12.5px; color: var(--muted); margin-top: 14px; word-break: break-all; }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="app">
+  <div class="page-head"><div><h1 id="h"></h1><p id="sub"></p></div></div>
+  <div class="card card-b" style="margin-top:18px"><b id="h2"></b><div class="st" id="st"></div></div>
+  <form class="card card-b grid" id="f" style="margin-top:14px" autocomplete="off">
+    <div class="field"><label>GEMINI_API_KEY</label><input class="input" name="GEMINI_API_KEY" type="password"><small id="s1"></small></div>
+    <div class="field"><label>TELEGRAM_BOT_TOKEN</label><input class="input" name="TELEGRAM_BOT_TOKEN" type="password" placeholder="1234567890:AAH..."><small id="s2"></small></div>
+    <div class="two">
+      <div class="field"><label>TELEGRAM_SPECIALIST_CHAT_ID</label><input class="input" name="TELEGRAM_SPECIALIST_CHAT_ID" placeholder="-100..."><small id="s3"></small></div>
+      <div class="field"><label>TELEGRAM_HEAD_CHAT_ID</label><input class="input" name="TELEGRAM_HEAD_CHAT_ID" placeholder="-100..."><small id="s4"></small></div>
+    </div>
+    <div class="two">
+      <div class="field"><label>ESCALATE_MINUTES</label><input class="input" name="ESCALATE_MINUTES" placeholder="1"></div>
+      <div class="field"><label>ACTIVE_CALL_MINUTES</label><input class="input" name="ACTIVE_CALL_MINUTES" placeholder="3"></div>
+    </div>
+    <div class="field"><label>WEBAPP_URL (Mini App)</label><input class="input" name="WEBAPP_URL" placeholder="https://xxxx.trycloudflare.com"><small id="s5"></small></div>
+    <button class="btn btn-primary btn-lg btn-block" id="save"></button>
+    <div class="path" id="path"></div>
+  </form>
+</div>
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+topbar("");
+document.title = t("Uzilmas · Sozlamalar");
+document.getElementById("h").textContent = t("Sozlamalar");
+document.getElementById("sub").textContent = t("Kalitlarni şu yerga kiriting — .env faylini qidiriş şart emas. Böş qoldirilgan maydon özgarmaydi.");
+document.getElementById("h2").textContent = t("Hozirgi holat");
+document.getElementById("s1").textContent = t("Tahlil rasmini öqiş uçun (aistudio.google.com)");
+document.getElementById("s2").textContent = t("@BotFather bergan token");
+document.getElementById("s3").textContent = t("Mutaxassis guruhi (botga /start yuboring)");
+document.getElementById("s4").textContent = t("Boş şifokor guruhi");
+document.getElementById("s5").textContent = t("Ixtiyoriy: cloudflared bergan https manzil");
+document.getElementById("save").innerHTML = ic("check") + t("Saqlaş va tekşiriş");
+
+function row(ok, label, val) {
+  return `<div><span class="${ok ? "ok" : "no"}">${ic(ok ? "checkc" : "alert", 18)}</span><span><b>${label}</b>${val ? " — " + esc(val) : ""}</span></div>`;
+}
+function show(s) {
+  document.getElementById("st").innerHTML = [
+    row(s.gemini, "Gemini", s.gemini ? t("ulandi") : t("kalit yöq")),
+    row(s.telegram.ok, "Telegram", s.telegram.msg),
+    row(s.specialist_chat, t("Mutaxassis guruhi"), s.specialist_chat ? "OK" : t("Chat ID yöq")),
+    row(s.head_chat, t("Boş şifokor guruhi"), s.head_chat ? "OK" : t("Chat ID yöq")),
+    row(!!s.webapp, "Mini App", s.webapp || t("ixtiyoriy")),
+  ].join("") + `<div class="muted" style="font-size:13px">${t("Eskalatsiya")}: ${s.escalate_minutes} · ${t("Aktiv çaqiruv")}: ${s.active_call_minutes}</div>`;
+  document.getElementById("path").textContent = (s.saved_to ? t("Saqlandi:") + " " + s.saved_to : (s.files && s.files.length ? t("Öqilgan fayllar:") + " " + s.files.join(", ") : ""));
+}
+async function load() { try { show(await api("/api/setup/status")); } catch (e) { toast(e.message, 5000); } }
+document.getElementById("f").onsubmit = async e => {
+  e.preventDefault();
+  const values = Object.fromEntries([...new FormData(e.target)].filter(([k, v]) => v.trim()));
+  const b = document.getElementById("save"); b.disabled = true;
+  try { show(await api("/api/setup", { method: "POST", body: JSON.stringify({ values }) })); toast(t("Saqlandi")); e.target.reset(); }
+  catch (err) { toast(err.message, 5000); }
+  b.disabled = false;
+};
+load();
+</script>
+</body>
+</html>

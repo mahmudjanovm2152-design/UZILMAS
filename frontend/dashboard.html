@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Mutaxassis paneli</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<style>
+  body { height: 100vh; overflow: hidden; display: flex; flex-direction: column; }
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); background: #fff; }
+  .kpi { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; display: flex; align-items: center; gap: 12px; transition: border-color .2s, background .2s; }
+  .kpi .ic { width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; flex: none; }
+  .kpi b { display: block; font-size: 22px; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .kpi span { font-size: 12.5px; color: var(--muted); }
+  .kpi.alert { border-color: var(--red); background: var(--red-50); }
+  .kpi.brk { cursor: pointer; } .kpi.brk.alert b { color: var(--red); }
+  .row .sm.brk { color: var(--red); font-weight: 500; }
+  .ic.red { background: var(--red-50); color: var(--red); } .ic.yellow { background: var(--amber-50); color: var(--amber); }
+  .ic.green { background: var(--green-50); color: var(--green); } .ic.blue { background: var(--blue-50); color: var(--blue); }
+
+  .grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 360px 1fr 430px; }
+  .col { overflow: auto; padding: 16px; background: #fff; }
+  .col.left { border-right: 1px solid var(--line); } .col.detail { border-left: 1px solid var(--line); background: var(--bg); }
+  .sec { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 10px; }
+  .sec h4 { font-size: 13px; font-weight: 600; color: var(--ink); display: flex; gap: 8px; align-items: center; }
+  .sec .muted { font-size: 12px; }
+
+  .alert-item { border: 1px solid var(--red-100); background: var(--red-50); border-left: 3px solid var(--red);
+                border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; animation: slidein .3s; cursor: pointer; }
+  .alert-item.call { border-color: var(--blue-100); background: var(--blue-50); border-left-color: var(--blue); }
+  .alert-item.done { background: #fff; border-color: var(--line); border-left-color: var(--green-dot); opacity: .75; }
+  .alert-item .t { font-weight: 600; color: var(--ink); font-size: 14px; }
+  .alert-item .s { font-size: 12.5px; color: var(--text); margin-top: 3px; display: flex; gap: 6px; align-items: center; }
+  .alert-item .s svg { width: 14px; height: 14px; }
+  .alert-item .s.msg { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .search { position: relative; } .search svg { position: absolute; left: 12px; top: 13px; color: var(--faint); }
+  .search .input { padding-left: 38px; height: 40px; }
+  .seg { display: grid; grid-template-columns: 1.1fr 1fr 1fr 1fr 1fr; gap: 2px; background: var(--line-2); padding: 3px; border-radius: 9px; margin: 10px 0; }
+  .seg button { height: 30px; border-radius: 7px; font-size: 12.5px; font-weight: 500; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .seg button.on { background: #fff; color: var(--ink); box-shadow: var(--shadow-sm); }
+
+  .row { display: flex; gap: 10px; align-items: center; padding: 9px 10px; border-radius: 9px; cursor: pointer; }
+  .row:hover { background: var(--line-2); } .row.sel { background: var(--blue-50); }
+  .row .nm { font-weight: 600; color: var(--ink); font-size: 14px; display: flex; align-items: center; gap: 6px; }
+  .row .nm svg { width: 14px; height: 14px; color: var(--blue); }
+  .row .sm { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 270px; }
+
+  #mapbox { position: relative; min-height: 0; }
+  #map { height: 100%; width: 100%; } .leaflet-container { background: #EEF2F7; font-family: var(--font); }
+  .maptitle { position: absolute; left: 14px; top: 14px; z-index: 500; background: #fff; border: 1px solid var(--line); border-radius: 10px;
+              padding: 7px 12px; font-size: 13px; font-weight: 600; color: var(--ink); box-shadow: var(--shadow); }
+  .osm-soft { filter: saturate(.35) brightness(1.06) contrast(.92); }   /* OSM rangini yumşatiş — markerlar aniq körinsin */
+  .dlabel { transform: translate(-50%, -50%); white-space: nowrap; font: 600 11.5px var(--font); color: #0747A6;
+            background: rgba(255,255,255,.85); padding: 2px 7px; border-radius: 6px; display: inline-flex; gap: 5px; align-items: center;
+            box-shadow: 0 1px 2px rgba(16,24,40,.12); pointer-events: none; }
+  .dlabel span { background: var(--red); color: #fff; border-radius: 9px; padding: 0 5px; font-size: 10.5px; line-height: 15px; }
+  .dtip { font: 13px var(--font); line-height: 1.5; border-radius: 8px; }
+  .maplegend { position: absolute; left: 14px; bottom: 14px; z-index: 500; background: #fff; border: 1px solid var(--line);
+               border-radius: 10px; padding: 8px 12px; display: flex; gap: 14px; font-size: 12.5px; box-shadow: var(--shadow); }
+  .maplegend span { display: flex; align-items: center; gap: 6px; }
+  .fallback { padding-top: 60px !important; display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; padding: 16px; }
+  .fallback .d { background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+
+  .detail .card { margin-bottom: 12px; }
+  .detail h2 { font-size: 20px; }
+  .finding { display: flex; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line-2); font-size: 14px; color: var(--ink); }
+  .finding:last-child { border: 0 } .finding .src { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .finding .dot { margin-top: 7px; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; color: var(--ink); }
+  .kv div span { color: var(--muted); display: block; font-size: 12px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
+  td, th { padding: 7px 4px; border-bottom: 1px solid var(--line-2); text-align: left; color: var(--ink); }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  .chart-l { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .flash { position: fixed; inset: 0; pointer-events: none; box-shadow: inset 0 0 0 0 rgba(217,45,32,0); transition: box-shadow .3s; z-index: 2000; }
+  .flash.on { box-shadow: inset 0 0 0 8px rgba(217,45,32,.85); }
+  .notes { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+  @media (max-width: 1200px) {
+    body { overflow: auto; height: auto; display: block; }
+    .grid { grid-template-columns: 1fr; display: flex; flex-direction: column; }
+    .col.left { order: 1; max-height: 62vh; border-right: 0; border-bottom: 1px solid var(--line); }
+    .col.detail { order: 2; border-left: 0; }
+    #mapbox { order: 3; height: 50vh; }
+    .kpis { grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 12px; }
+    .kpi { padding: 10px; gap: 10px; } .kpi b { font-size: 19px; } .kpi span { font-size: 12px; } .kpi .ic { width: 30px; height: 30px; }
+    .maptitle { font-size: 12px; } .maplegend { flex-wrap: wrap; gap: 8px; right: 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+<header id="topbar"></header>
+<div class="kpis">
+  <div class="kpi brk" id="kpi-broken" onclick="setFilter('broken')" title="Röyxatda faqat uzilgan zanjirlarni körsatiş" data-tt><div class="ic red" id="k0"></div><div><b id="c-broken">–</b><span data-t>Uzilgan zanjir — harakat kerak</span></div></div>
+  <div class="kpi"><div class="ic red" id="k1"></div><div><b id="c-red">–</b><span data-t>Qizil zona — darhol</span></div></div>
+  <div class="kpi"><div class="ic yellow" id="k2"></div><div><b id="c-yellow">–</b><span data-t>Sariq zona — kuzatuv</span></div></div>
+  <div class="kpi"><div class="ic green" id="k3"></div><div><b id="c-green">–</b><span data-t>Yaşil zona — reja böyiça</span></div></div>
+  <div class="kpi" id="chip-alert"><div class="ic red" id="k4"></div><div><b id="c-alert">–</b><span data-t>Tasdiqlanmagan ogohlantiriş</span></div></div>
+  <div class="kpi"><div class="ic blue" id="k5"></div><div><b id="c-dis">–</b><span data-t>Aktiv çaqiruv (oilaviy şifokor)</span></div></div>
+</div>
+<div class="grid">
+  <div class="col left">
+    <div class="sec"><h4 id="h-al"></h4><span class="muted" data-t>har 3 soniyada yangilanadi</span></div>
+    <div id="alerts"></div>
+    <div class="sec" style="margin-top:18px"><h4 id="h-pt"></h4><span class="muted" id="cnt"></span></div>
+    <div class="search" id="sbox"><input class="input" id="q" placeholder="Ism, tuman yoki mahalla…" data-tp></div>
+    <div class="seg" id="filters">
+      <button data-z="" class="on" data-t>Barçasi</button><button data-z="broken" data-t>Uzilgan</button><button data-z="red"><span class="dot red"></span><span data-t>Qizil</span></button>
+      <button data-z="yellow"><span class="dot yellow"></span><span data-t>Sariq</span></button><button data-z="green"><span class="dot green"></span><span data-t>Yaşil</span></button>
+    </div>
+    <div id="list"></div>
+  </div>
+  <div id="mapbox"><div class="maptitle" data-t>Toşkent xaritasi — nuqtani bosing</div><div id="map"></div>
+    <div class="maplegend"><span><span class="dot red"></span><span data-t>Qizil</span></span><span><span class="dot yellow"></span><span data-t>Sariq</span></span><span><span class="dot green"></span><span data-t>Yaşil</span></span><span><span class="dot" style="background:#fff;border:2.5px solid #0B1B33;width:11px;height:11px"></span><span data-t>Uzilgan zanjir</span></span></div></div>
+  <div class="col detail" id="detail"></div>
+</div>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+topbar("/dashboard", helpButton("showGuide(true)"));
+function showGuide(f) {
+  guide("dash", t("Mutaxassis paneli"), t("Ona va bola mutaxassisi Toşkentdagi barça homiladorlarni şu yerda kuzatadi."), [
+    [t("Yuqorida — umumiy holat"), t("Qizil karta «Uzilgan zanjir» — kimdir öz vazifasini bajarmagan bemorlar. Bosing — röyxatda faqat ular qoladi.")],
+    [t("Çapda — kimga yordam kerak"), t("Ogohlantirişlar va bemorlar röyxati. Uzilgan zanjirlar va qizil zona eng tepada.")],
+    [t("Öngda — tanlangan bemor"), t("Jonli zanjir (qaysi böğin uzilgan), zona sababi, dinamika va harakat tugmalari.")],
+  ], f);
+}
+showGuide(false);
+[["k0", "link"], ["k1", "alert"], ["k2", "activity"], ["k3", "checkc"], ["k4", "bell"], ["k5", "home"]].forEach(([id, i]) => document.getElementById(id).innerHTML = ic(i));
+i18n();
+document.getElementById("h-al").innerHTML = ic("bell", 16) + t("Jonli ogohlantirişlar");
+document.getElementById("h-pt").innerHTML = ic("user", 16) + t("Homilador ayollar");
+document.getElementById("sbox").insertAdjacentHTML("afterbegin", ic("search", 16));
+const EMPTY_DETAIL = `<div class="empty">${ic("pin")}<br><b style="color:var(--ink)">${t("Bemorni tanlang")}</b><br>${t("Xaritadagi nuqtani yoki çapdagi röyxatni bosing.")}</div>`;
+document.getElementById("detail").innerHTML = EMPTY_DETAIL;
+
+const START_ID = +(new URLSearchParams(location.search).get("p") || 0);
+let patients = [], filterZone = "", selected = null, markers = {}, map = null, seenAlerts = null;
+const COLORS = { red: "#D92D20", yellow: "#F79009", green: "#12B76A" };
+
+// ---------- Xarita: tuman çegaralari (OpenStreetMap) + bemorlar ----------
+let districts = null, dLabels = {};
+function initMap() {
+  if (!window.L) { document.getElementById("map").innerHTML = '<div class="fallback" id="fb"></div>'; return; }
+  map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 10 }).setView([41.30, 69.27], 11);
+  map.attributionControl.setPrefix(false);
+  // Fon xarita (internet bölsa). Internet bölmasa ham tuman çegaralari va bemorlar körinadi.
+  // Fon xarita: OpenStreetMap (kalit şart emas). .env da CARTO_API_KEY bölsa — CARTO Voyager.
+  api("/api/config").then(cfg => {
+    const carto = cfg && cfg.carto_key;
+    L.tileLayer(carto ? `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${encodeURIComponent(carto)}`
+                      : "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+      { maxZoom: 19, className: carto ? "" : "osm-soft",
+        attribution: carto ? "© OpenStreetMap contributors · © CARTO" : "© OpenStreetMap contributors" }).addTo(map);
+  }).catch(() => {});
+  L.control.zoom({ position: "bottomright" }).addTo(map);
+  fetch("/static/tashkent_districts.geojson").then(r => r.json()).then(g => {
+    districts = L.geoJSON(g, {
+      style: () => ({ color: "#0A6CF5", weight: 1.4, opacity: .7, fillColor: "#0A6CF5", fillOpacity: .04 }),
+      onEachFeature: (f, layer) => {
+        layer.on({
+          mouseover: e => e.target.setStyle({ weight: 2.6, opacity: 1 }),
+          mouseout: e => districts.resetStyle(e.target) && styleDistricts(),
+          click: () => { document.getElementById("q").value = f.properties.name; setFilter(""); },
+        });
+      },
+    }).addTo(map);
+    districts.bringToBack();
+    map.fitBounds(districts.getBounds(), { padding: [12, 12] });
+    styleDistricts();
+  }).catch(() => {});
+}
+function dName(f) { return LANG === "ru" ? (f.properties.name_ru || f.properties.name).replace(/ район$/, "") : f.properties.name; }
+function styleDistricts() {
+  if (!districts) return;
+  const by = {};
+  patients.forEach(p => {
+    const d = (by[p.district] ??= { red: 0, yellow: 0, green: 0, broken: 0, n: 0 });
+    d[p.zone]++; d.n++; if (p.chain_status === "broken") d.broken++;
+  });
+  districts.eachLayer(layer => {
+    const f = layer.feature, d = by[f.properties.name] || { red: 0, yellow: 0, green: 0, broken: 0, n: 0 };
+    const risk = d.red * 2 + d.broken;     // xavf indeksi: qizil zona va uzilgan zanjir
+    const fill = risk >= 4 ? "#D92D20" : risk >= 2 ? "#F79009" : risk >= 1 ? "#FDB022" : "#0A6CF5";
+    layer.setStyle({ fillColor: fill, fillOpacity: risk ? .16 : .05 });
+    layer.bindTooltip(`<b>${esc(dName(f))}</b><br>${t("Homilador ayollar")}: ${d.n}<br>
+      <span class="dot red"></span> ${d.red} &nbsp;<span class="dot yellow"></span> ${d.yellow} &nbsp;<span class="dot green"></span> ${d.green}<br>
+      ${t("Uzilgan zanjir")}: <b>${d.broken}</b>`, { sticky: true, className: "dtip" });
+    const c = layer.getBounds().getCenter(), key = f.properties.name;
+    const html = `<div class="dlabel">${esc(dName(f))}${d.red + d.broken ? `<span>${d.red + d.broken}</span>` : ""}</div>`;
+    if (!dLabels[key]) dLabels[key] = L.marker(c, { interactive: false, keyboard: false, icon: L.divIcon({ className: "", html, iconSize: null }) }).addTo(map);
+    else if (dLabels[key]._h !== html) dLabels[key].setIcon(L.divIcon({ className: "", html, iconSize: null }));
+    dLabels[key]._h = html;
+  });
+}
+
+function drawMap() {
+  if (!map) {
+    const fb = document.getElementById("fb"); if (!fb) return;
+    const by = {}; patients.forEach(p => { (by[p.district] ??= { red: 0, yellow: 0, green: 0 })[p.zone]++; });
+    fb.innerHTML = Object.entries(by).map(([d, z]) => `<div class="d"><b style="color:var(--ink)">${esc(d)}</b>
+      <div style="display:flex;gap:10px;margin-top:6px;font-size:13px"><span><span class="dot red"></span> ${z.red}</span>
+      <span><span class="dot yellow"></span> ${z.yellow}</span><span><span class="dot green"></span> ${z.green}</span></div></div>`).join("");
+    return;
+  }
+  styleDistricts();
+  patients.forEach(p => {
+    const brk = p.chain_status === "broken";
+    const style = { radius: p.zone === "red" ? 8 : p.zone === "yellow" ? 6 : brk ? 6 : 4.5, color: brk ? "#0B1B33" : "#fff",
+      weight: brk ? 2.5 : 1.5, fillColor: COLORS[p.zone], fillOpacity: 1 };
+    const key = JSON.stringify(style);
+    if (markers[p.id]) { if (markers[p.id]._k !== key) markers[p.id].setStyle(style).setRadius(style.radius); }
+    else {
+      markers[p.id] = L.circleMarker([p.lat, p.lon], style).addTo(map)
+        .on("click", () => openPatient(p.id, false, true));
+    }
+    markers[p.id]._k = key;
+    markers[p.id].bindTooltip(`${esc(p.full_name)} · ${ZONE[p.zone].uz}${brk ? " · " + t("Uzilgan zanjir") : ""}`);
+    if (p.zone === "red" || brk) markers[p.id].bringToFront();
+  });
+}
+
+function drawList() {
+  const q = document.getElementById("q").value.toLowerCase();
+  const order = { red: 0, yellow: 1, green: 2 };
+  const items = patients.filter(p => (!filterZone || p.zone === filterZone || (filterZone === "broken" && p.chain_status === "broken")) &&
+    (!q || (p.full_name + p.district + p.mahalla).toLowerCase().includes(q)))
+    .sort((a, b) => ((a.chain_status === "broken") ? 0 : 1) - ((b.chain_status === "broken") ? 0 : 1) || order[a.zone] - order[b.zone]);
+  document.getElementById("cnt").textContent = t("{0} ta", items.length);
+  setHTML("list", items.slice(0, 150).map(p => `
+    <div class="row ${selected === p.id ? "sel" : ""}" onclick="openPatient(${p.id}, false, true)">
+      <span class="dot ${p.zone}"></span>
+      <div style="min-width:0"><div class="nm">${esc(p.full_name)} ${p.status === "discharged" ? ic("home") : ""}</div>
+      ${p.chain_status === "broken" ? `<div class="sm brk">${t("Zanjir uzildi:")} ${esc(p.chain_break)}</div>`
+        : `<div class="sm">${esc(p.district)} · ${p.ga_weeks ? t("{0} hafta", p.ga_weeks) + " · " : ""}${esc(p.summary)}</div>`}</div>
+    </div>`).join("") || `<div class="empty">${t("Topilmadi")}</div>`);
+}
+
+async function refresh() {
+  try {
+    const [st, pts, al] = await Promise.all([api("/api/stats"), api("/api/patients"), api("/api/alerts")]);
+    trackChains(pts);
+    patients = pts;
+    document.getElementById("c-broken").textContent = st.chains.broken;
+    document.getElementById("kpi-broken").classList.toggle("alert", st.chains.broken > 0);
+    for (const z of ["red", "yellow", "green"]) document.getElementById("c-" + z).textContent = st.by_zone[z];
+    document.getElementById("c-alert").textContent = st.open_alerts;
+    document.getElementById("c-dis").textContent = st.discharged;
+    document.getElementById("chip-alert").classList.toggle("alert", st.open_alerts > 0);
+    drawList(); drawMap(); drawAlerts(al);
+    if (selected) openPatient(selected, true);
+    else if (START_ID) openPatient(START_ID, false, true);
+    else if (pts.length) openPatient(pts[0].id);
+  } catch (e) { console.warn(e); }
+}
+
+function drawAlerts(al) {
+  const ids = new Set(al.map(a => a.id));
+  if (seenAlerts) {
+    const fresh = al.filter(a => !seenAlerts.has(a.id) && a.kind === "red_zone");
+    if (fresh.length) {
+      beep(); const f = document.getElementById("flash"); f.classList.add("on"); setTimeout(() => f.classList.remove("on"), 1400);
+      toast(t("Yangi qizil zona:") + " " + fresh[0].full_name);
+      const m = markers[fresh[0].patient_id];
+      if (m && map) { map.flyTo(m.getLatLng(), 14, { duration: .8 }); }
+      openPatient(fresh[0].patient_id);
+    }
+  }
+  seenAlerts = ids;
+  const recent = Date.now() - 6 * 3600 * 1000;   // tasdiqlanganlar faqat oxirgi 6 soatdagisi
+  const shown = al.filter(a => !a.acknowledged_at || new Date(a.acknowledged_at.replace(" ", "T")) > recent)
+    .sort((x, y) => (!!x.acknowledged_at) - (!!y.acknowledged_at) || y.id - x.id);
+  setHTML("alerts", shown.slice(0, 8).map(a => `
+    <div class="alert-item ${a.kind === "active_call" ? "call" : ""} ${a.acknowledged_at ? "done" : ""}" onclick="openPatient(${a.patient_id})">
+      <div class="t">${a.kind === "red_zone" ? t("Qizil zona") : t("Aktiv çaqiruv")} — ${esc(a.full_name)}</div>
+      <div class="s msg">${esc(a.message || "")}</div>
+      <div class="s">${a.acknowledged_at ? ic("checkc") + t("Tasdiqladi:") + " " + esc(t(a.acknowledged_by || "")) + " · " + fmtTime(a.acknowledged_at)
+        : a.escalated_at ? ic("up") + t("Boş şifokorga kötarildi") : ic("clock") + t("Tasdiqlaş muddati:") + " " + fmtTime(a.due_at)}</div>
+    </div>`).join("") || `<div class="empty" style="padding:20px">${ic("checkc")}<br>${t("Oçiq ogohlantiriş yöq")}</div>`);
+}
+
+function chart(visits, key, label, limit, color) {
+  const pts = visits.map(v => v[key]).filter(x => x != null);
+  if (pts.length < 2) return "";
+  const W = 380, H = 90, lo = Math.min(...pts, limit) - 8, hi = Math.max(...pts, limit) + 8;
+  const x = i => 12 + i * (W - 24) / (pts.length - 1), y = v => H - 12 - (v - lo) * (H - 24) / (hi - lo);
+  const path = pts.map((v, i) => (i ? "L" : "M") + x(i).toFixed(1) + " " + y(v).toFixed(1)).join(" ");
+  return `<div class="chart-l"><span>${label}</span><span>${t("çegara")} ${limit}</span></div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%">
+      <line x1="0" x2="${W}" y1="${y(limit)}" y2="${y(limit)}" stroke="#D92D20" stroke-dasharray="4 4" opacity=".5"/>
+      <path d="${path}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+      ${pts.map((v, i) => `<circle cx="${x(i)}" cy="${y(v)}" r="3.5" fill="#fff" stroke="${color}" stroke-width="2"/><text x="${x(i)}" y="${y(v) - 8}" fill="#344256" font-size="11" text-anchor="middle">${v}</text>`).join("")}
+    </svg>`;
+}
+
+async function openPatient(id, silent, user) {
+  selected = id; if (!silent) drawList();
+  const d = await api("/api/patients/" + id);
+  const p = d.patient, a = d.assessment, vs = d.visits;
+  const open = d.alerts.find(x => !x.acknowledged_at);
+  const SRC = { manual: t("qölda"), photo: t("rasm"), voice: t("ovoz"), offline: t("oflayn") };
+  setHTML("detail", `
+    <div class="card card-b">
+      <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
+        <div><h2>${esc(p.full_name)}</h2><div class="muted" style="font-size:14px">${t("{0} yoş · {1}, {2} mahallasi", p.age, esc(p.district), esc(p.mahalla))}</div></div>
+        ${zonePill(a.zone)}</div>
+      <div class="notes">
+        ${a.trend_raised ? `<span class="tag" style="background:var(--amber-50);color:var(--amber)">${ic("trend", 14)}${t("Dinamika zonani kötardi")}</span>` : ""}
+        ${p.status === "discharged" ? `<span class="tag blue">${ic("home", 14)}${t("Javob berilgan")} · ${esc(p.discharge_label || "")}</span>` : ""}
+      </div>
+    </div>
+    <div class="card"><div class="card-h"><h3>${t("Jonli zanjir")}</h3>${chainPill(d.chain.status, d.chain.break_at)}</div>
+      <div class="card-b" style="padding-top:4px">${chainBanner(d.chain)}${chainHTML(d.chain, "v")}</div></div>
+    <div class="card"><div class="card-h"><h3>${t("Nega bu zona?")}</h3><span class="tag">${t("Qoidalar")} v${esc(a.rules_version)}</span></div><div class="card-b" style="padding-top:6px">
+      ${a.findings.map(f => `<div class="finding"><span class="dot ${f.level}"></span>
+        <div><div>${esc(f.reason)}</div><div class="src"><span class="mono">${esc(f.rule_id)}</span> · ${esc(f.source)}</div></div></div>`).join("")
+        || `<div class="finding"><span class="dot green"></span><div>${t("Xavf belgilari aniqlanmadi")}</div></div>`}
+      ${a.needs_review.length ? `<div class="finding">${ic("help", 16)}<div>${t("Tekşiriş kerak:")} ${esc(a.needs_review.join(", "))}</div></div>` : ""}
+    </div></div>
+    <div class="card"><div class="card-h"><h3>${t("Dinamika")}</h3><span class="muted" style="font-size:12px">${t("{0} ta taşrif", vs.length)}</span></div><div class="card-b" style="padding-top:8px">
+      ${chart(vs, "sbp", t("Sistolik bosim, mm sim. ust."), 140, "#0A6CF5")}
+      ${chart(vs, "hb_g_l", t("Gemoglobin, g/l"), 110, "#0747A6")}
+      <table style="margin-top:10px"><tr><th>${t("Sana")}</th><th>${t("Hafta")}</th><th>${t("Bosim")}</th><th>Hb</th><th>${t("Oqsil")}</th><th>${t("Manba")}</th></tr>
+      ${vs.slice().reverse().map(v => `<tr><td>${v.date.slice(5)}</td><td>${v.ga_weeks ?? "—"}</td>
+        <td>${v.sbp ?? "?"}/${v.dbp ?? "?"}</td><td>${v.hb_g_l ?? "?"}</td><td>${v.protein_g_l ?? "?"}</td>
+        <td><span class="tag">${SRC[v.source] || v.source}</span></td></tr>`).join("")}</table>
+    </div></div>
+    <div class="card"><div class="card-h"><h3>${t("Favqulodda profil")}</h3>${ic("drop", 16)}</div><div class="card-b"><div class="kv">
+      <div><span>${t("Qon guruhi")}</span>${esc(p.blood_group || "—")}</div><div><span>${t("Allergiya")}</span>${esc(t(p.allergies || "—"))}</div>
+      <div><span>${t("Hamşira")}</span>${esc(p.nurse || "—")}</div><div><span>${t("Oilaviy şifokor")}</span>${esc(p.family_doctor || "—")}</div>
+      <div><span>${t("Telefon")}</span>${esc(p.phone || "—")}</div></div></div></div>
+    <div class="actions">
+      ${open ? `<button class="btn btn-primary" onclick="ack(${open.id})">${ic("check")}${t("Ogohlantirişni qabul qildim")}</button>` : ""}
+      ${p.status !== "discharged" ? `<button class="btn btn-secondary" onclick="discharge(${p.id})">${ic("hospital")}${t("Kasalxonadan javob berildi")}</button>` : ""}
+    </div>`);  if (user && window.innerWidth <= 1200) document.getElementById("detail").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function ack(id) { await api(`/api/alerts/${id}/ack`, { method: "POST", body: JSON.stringify({ by: "OvaBMU mutaxassisi" }) }); toast(t("Tasdiqlandi")); refresh(); }
+async function discharge(id) {
+  const notes = prompt(t("Javob beriş izohi (masalan: tabiiy tuğruq, çaqaloq 3200 g):"), t("Tabiiy tuğruq, ona va çaqaloq holati qoniqarli"));
+  if (notes === null) return;
+  await api(`/api/patients/${id}/discharge`, { method: "POST", body: JSON.stringify({ reason: "postpartum", notes }) });
+  toast(t("Oilaviy şifokorga aktiv çaqiruv yuborildi")); refresh();
+}
+
+function setFilter(z) {
+  filterZone = z;
+  [...document.getElementById("filters").children].forEach(x => x.classList.toggle("on", x.dataset.z === z)); drawList();
+}
+document.getElementById("filters").onclick = e => { const b = e.target.closest("button"); if (b) setFilter(b.dataset.z); };
+
+// Zanjir uzilsa yoki tiklansa — darhol xabar
+let lastChain = null;
+function trackChains(pts) {
+  if (lastChain) {
+    for (const p of pts) {
+      const was = lastChain[p.id];
+      if (was === "broken" || p.chain_status === was) continue;
+      if (p.chain_status === "broken") { beep(); toast(t("Zanjir uzildi:") + " " + p.full_name + " — " + p.chain_break, 4500); openPatient(p.id); }
+    }
+    for (const p of pts) if (lastChain[p.id] === "broken" && p.chain_status !== "broken") toast(t("Zanjir tiklandi:") + " " + p.full_name, 3500);
+  }
+  lastChain = Object.fromEntries(pts.map(p => [p.id, p.chain_status]));
+}
+document.getElementById("q").oninput = drawList;
+initMap(); refresh(); setInterval(refresh, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Uzilmas · Hamşira",
+  "short_name": "Uzilmas",
+  "start_url": "/nurse",
+  "display": "standalone",
+  "background_color": "#F5F8FC",
+  "theme_color": "#0A6CF5",
+  "icons": []
+}

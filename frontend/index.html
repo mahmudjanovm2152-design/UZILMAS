@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas — bemor tizimdan tuşib qolmaydi</title>
+<meta name="description" content="Uzilmas — homilador ayolni patronajdan oilaviy şifokorgaça uzluksiz kuzatiş platformasi.">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+  section { padding: 64px 0; }
+  section.alt { background: #fff; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .hero { padding: 56px 0; background: radial-gradient(800px 380px at 85% 0%, var(--blue-50), transparent 70%), #fff; border-bottom: 1px solid var(--line); }
+  .hero .in { display: grid; grid-template-columns: 1.1fr .9fr; gap: 56px; align-items: center; }
+  .hero .in > * { min-width: 0; }
+  .hero .tag { white-space: normal; height: auto; min-height: 24px; padding: 4px 9px; line-height: 1.35; }
+  .hero h1 { font-size: clamp(36px, 5vw, 54px); line-height: 1.06; font-weight: 800; letter-spacing: -.035em; margin: 16px 0; }
+  .hero h1 em { font-style: normal; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .hero .lead { font-size: 18px; color: var(--text); max-width: 540px; margin: 0; }
+  .facts { list-style: none; padding: 0; margin: 22px 0 0; display: grid; gap: 10px; }
+  .facts li { display: flex; gap: 10px; align-items: flex-start; font-size: 15.5px; color: var(--ink); }
+  .facts li svg { color: var(--blue); margin-top: 3px; }
+  .cta { display: flex; gap: 12px; margin-top: 28px; flex-wrap: wrap; }
+
+  .live { padding: 22px; box-shadow: var(--shadow-lg); }
+  .live .hd { display: flex; justify-content: space-between; align-items: center; }
+  .live .big { font-size: 44px; font-weight: 800; color: var(--ink); letter-spacing: -.03em; line-height: 1; margin-top: 14px; }
+  .bar3 { display: flex; height: 10px; border-radius: 6px; overflow: hidden; margin: 18px 0 14px; background: var(--line-2); }
+  .legend { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .legend div { font-size: 13px; color: var(--muted); } .legend b { display: block; font-size: 20px; color: var(--ink); }
+  .live .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 18px; }
+  .mini { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: flex; gap: 10px; align-items: center; }
+  .mini .ic { width: 34px; height: 34px; border-radius: 8px; background: var(--blue-50); color: var(--blue); display: grid; place-items: center; flex: none; }
+  .mini b { display: block; font-size: 18px; color: var(--ink); line-height: 1.1; } .mini span { font-size: 12.5px; color: var(--muted); }
+  .mini.bad { border-color: var(--red-100); background: var(--red-50); } .mini.bad .ic { background: #fff; color: var(--red); } .mini.bad b { color: var(--red); }
+
+  .sh { display: flex; gap: 16px; align-items: flex-start; margin-bottom: 30px; max-width: 760px; }
+  .sh .num { width: 40px; height: 40px; border-radius: 10px; background: var(--grad); color: #fff; font-weight: 800; font-size: 18px;
+             display: grid; place-items: center; flex: none; margin-top: 2px; }
+  .sh h2 { font-size: 28px; font-weight: 700; } .sh p { color: var(--muted); font-size: 16px; margin: 6px 0 0; }
+
+  .g3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .prob { padding: 22px; display: flex; flex-direction: column; gap: 12px; }
+  .prob .t { display: flex; justify-content: space-between; align-items: center; }
+  .prob .ico { width: 42px; height: 42px; border-radius: 10px; background: var(--red-50); color: var(--red); display: grid; place-items: center; }
+  .prob h3 { font-size: 18px; } .prob .p { color: var(--text); font-size: 14.5px; margin: 0; }
+  .prob .sol { margin-top: auto; padding-top: 12px; border-top: 1px solid var(--line-2); font-size: 14.5px; color: var(--ink); display: flex; gap: 8px; }
+  .prob .sol svg { color: var(--blue); margin-top: 2px; }
+
+  .links5 { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0; }
+  .lk { text-align: center; padding: 0 8px; position: relative; }
+  .lk:not(:last-child)::after { content: ""; position: absolute; top: 26px; left: calc(50% + 28px); right: calc(-50% + 28px); height: 3px; background: var(--grad); border-radius: 2px; }
+  .lk .c { width: 52px; height: 52px; border-radius: 50%; margin: 0 auto; display: grid; place-items: center; background: #fff;
+           border: 2px solid var(--blue); color: var(--blue); position: relative; z-index: 1; }
+  .lk .c svg { width: 22px; height: 22px; }
+  .lk .n { font-size: 12px; font-weight: 700; color: var(--blue); margin-top: 12px; letter-spacing: .05em; }
+  .lk h4 { font-size: 15.5px; margin-top: 2px; } .lk p { font-size: 13.5px; color: var(--muted); margin: 4px 0 0; }
+  .key { display: flex; gap: 22px; flex-wrap: wrap; margin: 34px 0 16px; font-size: 14px; color: var(--ink); }
+  .key span { display: flex; gap: 8px; align-items: center; }
+  .key i { width: 14px; height: 14px; border-radius: 50%; display: inline-block; }
+  .chains { display: grid; gap: 16px; } .chains h3 { font-size: 17px; }
+
+  .mod { display: flex; flex-direction: column; padding: 22px; transition: box-shadow .2s, border-color .2s; }
+  .mod:hover { box-shadow: var(--shadow-lg); border-color: var(--blue-200); }
+  .mod .top { display: flex; justify-content: space-between; align-items: center; }
+  .mod .ico { width: 42px; height: 42px; border-radius: 10px; background: var(--blue-50); color: var(--blue); display: grid; place-items: center; }
+  .mod h3 { font-size: 19px; margin: 16px 0 2px; } .mod .who { color: var(--muted); font-size: 14px; }
+  .mod ol { padding-left: 20px; margin: 16px 0 20px; display: grid; gap: 8px; flex: 1; font-size: 14.5px; color: var(--ink); }
+
+  .pr { padding: 22px; } .pr svg { color: var(--blue); } .pr h3 { font-size: 16.5px; margin: 12px 0 6px; }
+  .pr p { margin: 0; color: var(--muted); font-size: 14.5px; }
+
+  .try { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .tr { padding: 22px; display: flex; flex-direction: column; gap: 10px; }
+  .tr .n { width: 30px; height: 30px; border-radius: 50%; background: var(--blue); color: #fff; font-weight: 700; display: grid; place-items: center; }
+  .tr h3 { font-size: 17px; } .tr p { margin: 0; color: var(--text); font-size: 14.5px; flex: 1; }
+  .tr code { background: var(--blue-50); color: var(--blue-700); padding: 1px 6px; border-radius: 5px; font-size: 13px; }
+
+  .roadmap { margin-top: 18px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+  footer { border-top: 1px solid var(--line); background: #fff; padding: 24px 0; color: var(--muted); font-size: 13.5px; }
+  footer .wrap { display: flex; justify-content: space-between; gap: 14px; flex-wrap: wrap; } footer a { color: var(--blue); }
+  @media (max-width: 960px) {
+    .hero .in, .g3, .try { grid-template-columns: 1fr; }
+    .links5 { grid-template-columns: 1fr; gap: 18px; } .lk { text-align: left; display: grid; grid-template-columns: 52px 1fr; gap: 0 14px; }
+    .lk .c { margin: 0; grid-row: span 3; } .lk .n { margin-top: 0; } .lk::after { display: none; }
+  }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+
+<!-- HERO -->
+<div class="hero"><div class="wrap in">
+  <div>
+    <span class="tag blue" id="tagline"></span>
+    <h1 data-t>Bemor tizimdan<br><em>tuşib qolmaydi.</em></h1>
+    <p class="lead" data-t>Uzilmas — homilador ayol uçun hamşira, mutaxassis, tuğruqxona va oilaviy şifokorni <b>bitta uzilmas zanjirga</b> boğlaydigan platforma.</p>
+    <ul class="facts" id="facts"></ul>
+    <div class="cta">
+      <a class="btn btn-primary btn-lg" href="/dashboard" id="cta1"></a>
+      <a class="btn btn-secondary btn-lg" href="#sinab" id="cta2"></a>
+    </div>
+  </div>
+  <div class="card live">
+    <div class="hd"><span class="eyebrow" data-t>Hozir kuzatuvda · Toşkent</span><span class="tag blue" id="ver"></span></div>
+    <div class="big"><span id="s-total">—</span> <span style="font-size:18px;font-weight:600;color:var(--muted)" data-t>homilador ayol</span></div>
+    <div class="bar3"><div id="b-red" style="background:var(--red)"></div><div id="b-yellow" style="background:var(--amber-dot)"></div><div id="b-green" style="background:var(--green-dot)"></div></div>
+    <div class="legend">
+      <div><span class="dot red"></span> <span data-t>Qizil — darhol</span><b id="s-red">—</b></div>
+      <div><span class="dot yellow"></span> <span data-t>Sariq — kuzatuv</span><b id="s-yellow">—</b></div>
+      <div><span class="dot green"></span> <span data-t>Yaşil — me'yor</span><b id="s-green">—</b></div>
+    </div>
+    <div class="row2">
+      <div class="mini bad"><div class="ic" id="i-link"></div><div><b id="s-broken">—</b><span data-t>uzilgan zanjir — harakat kerak</span></div></div>
+      <div class="mini"><div class="ic" id="i-home"></div><div><b id="s-dis">—</b><span data-t>oilaviy şifokorga çaqiruv</span></div></div>
+    </div>
+  </div>
+</div></div>
+
+<!-- 1. MUAMMO -->
+<section><div class="wrap">
+  <div class="sh"><div class="num">1</div><div><h2 data-t>Muammo: ona uç joyda yöqoladi</h2>
+    <p data-t>Soğliqni saqlaş vazirligi bu muammolarni №9, №10 va №11-vazifalar sifatida qöygan.</p></div></div>
+  <div class="g3" id="probs"></div>
+</div></section>
+
+<!-- 2. YEÇIM -->
+<section class="alt"><div class="wrap">
+  <div class="sh"><div class="num">2</div><div><h2 data-t>Yeçim: 5 böğinli uzilmas zanjir</h2>
+    <p data-t>Har bir bemor şu 5 böğindan ötadi. Tizim har bir böğin öz vaqtida bajarilganini nazorat qiladi.</p></div></div>
+  <div class="links5" id="links5"></div>
+
+  <div class="key"><b data-t>Jonli zanjir ranglari:</b>
+    <span><i style="background:var(--blue)"></i><span data-t>Kök — bajarildi</span></span>
+    <span><i style="background:var(--amber-dot)"></i><span data-t>Sariq — javob kutilmoqda (taymer)</span></span>
+    <span><i style="background:var(--red)"></i><span data-t>Qizil «UZILDI» — kimdir bajarmadi, xabar yuborildi</span></span></div>
+  <div class="chains">
+    <div class="card card-b"><div class="chain-head"><div><span class="eyebrow" data-t>Tizimdagi real misol · zanjir uzilgan</span><h3 id="ex1-name" style="margin-top:4px">—</h3></div><span id="ex1-pill"></span></div><div id="ex1"></div></div>
+    <div class="card card-b"><div class="chain-head"><div><span class="eyebrow" data-t>Tizimdagi real misol · zanjir butun</span><h3 id="ex2-name" style="margin-top:4px">—</h3></div><span id="ex2-pill"></span></div><div id="ex2"></div></div>
+  </div>
+</div></section>
+
+<!-- 3. KIM NIMA QILADI -->
+<section><div class="wrap">
+  <div class="sh"><div class="num">3</div><div><h2 data-t>Kim nima qiladi: 3 ta iş joyi</h2>
+    <p data-t>Har bir foydalanuvçi faqat öziga kerakli ekranni köradi. Kartani bosing — modul oçiladi.</p></div></div>
+  <div class="g3" id="mods"></div>
+  <div class="roadmap" id="roadmap"></div>
+</div></section>
+
+<!-- 4. XAVFSIZLIK -->
+<section class="alt"><div class="wrap">
+  <div class="sh"><div class="num">4</div><div><h2 data-t>Nega işonsa böladi: qarorni qoida qabul qiladi, AI emas</h2>
+    <p data-t>Har bir zona oçiq qoida va manbaga ega — şifokor nega aynan şu zona ekanini köradi.</p></div></div>
+  <div class="g3" id="principles"></div>
+</div></section>
+
+<!-- 5. SINAB KÖRING -->
+<section id="sinab"><div class="wrap">
+  <div class="sh"><div class="num">5</div><div><h2 data-t>Özingiz sinab köring — 3 qadam, 1 daqiqa</h2>
+    <p data-t>Barça ma'lumotlar sintetik. Heç narsa buzilmaydi.</p></div></div>
+  <div class="try" id="try"></div>
+</div></section>
+
+<footer><div class="wrap">
+  <span data-t>© 2026 Uzilmas · Umummilliy AI Xakaton, Toşkent · Barça ma'lumotlar sintetik</span>
+  <span><a href="/docs" data-t>API hujjatlari</a> · <a href="/api/rules" data-t>Klinik qoidalar</a></span>
+</div></footer>
+
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+topbar("/"); i18n();
+const $ = id => document.getElementById(id);
+$("tagline").innerHTML = ic("shield", 14) + t("Soğliqni saqlaş vazirligi vazifalari №9 · №10 · №11");
+$("cta1").innerHTML = ic("grid") + t("Mutaxassis panelini oçiş");
+$("cta2").innerHTML = t("Qanday sinab köriş") + " " + ic("arrow", 16);
+$("i-link").innerHTML = ic("link"); $("i-home").innerHTML = ic("home");
+$("facts").innerHTML = [
+  t("Hamşira tahlilni <b>rasm, ovoz yoki qölda</b> kiritadi — internetsiz ham"),
+  t("Xavfli holat bölsa, mutaxassis <b>Telegram orqali darhol</b> biladi"),
+  t("Kasalxonadan çiqqaç, oilaviy şifokor <b>24 soat içida</b> taşrif buyuradi"),
+  t("Zanjirning biror böğini bajarilmasa — <b>tizim darhol körsatadi</b>"),
+].map(x => `<li>${ic("checkc", 18)}<span>${x}</span></li>`).join("");
+
+$("probs").innerHTML = [
+  ["home", "№10", t("Uyda yöqoladi"), t("Hamşira tahlilni qoğozga yozadi. Qişloqda internet yöq — ma'lumot tizimga kirmaydi."),
+   t("Hamşira ilovasi internetsiz işlaydi, AI tahlil rasmini öqiydi.")],
+  ["file", "№9", t("Röyxatda yöqoladi"), t("Mutaxassis xavfli bosim yoki anemiyani keç biladi — ba'zan juda keç."),
+   t("Xavf zonasi darhol hisoblanadi, qizil zona — Telegramga.")],
+  ["hospital", "№11", t("Kasalxonadan keyin yöqoladi"), t("Tuğruqxona javob beradi, lekin oilaviy şifokor bundan bexabar qoladi."),
+   t("Oilaviy şifokorga avtomatik çaqiruv va 24 soatlik taymer.")],
+].map(([i, n, h, p, sol]) => `<div class="card prob"><div class="t"><div class="ico">${ic(i, 20)}</div><span class="tag">${t("Vazifa")} ${n}</span></div>
+  <h3>${h}</h3><p class="p">${p}</p><div class="sol">${ic("check", 16)}<span><b>${t("Yeçim:")}</b> ${sol}</span></div></div>`).join("");
+
+$("links5").innerHTML = [
+  ["user", t("Patronaj hamşirasi"), t("Uyga boradi, bosim va tahlilni kiritadi")],
+  ["spark", t("Xavf baholaş"), t("Oçiq qoidalar zonani belgilaydi, AI izohlaydi")],
+  ["bell", t("Mutaxassis"), t("Qizil zonani darhol köradi va tasdiqlaydi")],
+  ["hospital", t("Tuğruqxona"), t("Javob berganda bir tugmani bosadi")],
+  ["steth", t("Oilaviy şifokor"), t("24 soat içida uyga boradi va tasdiqlaydi")],
+].map(([i, h, p], k) => `<div class="lk"><div class="c">${ic(i)}</div><div class="n">${t("{0}-BÖĞIN", k + 1)}</div><h4>${h}</h4><p>${p}</p></div>`).join("");
+
+$("mods").innerHTML = [
+  { href: "/nurse", icon: "user", task: "№10", title: t("Hamşira ilovasi"), who: t("Patronaj hamşirasi · telefon"),
+    items: [t("Bemorni tanlaydi"), t("Tahlil rasmini oladi yoki ovoz bilan aytadi"), t("Raqamlarni tekşirib, «Saqlaş»ni bosadi")] },
+  { href: "/dashboard", icon: "grid", task: "№9", title: t("Mutaxassis paneli"), who: t("Ona va bola mutaxassisi · kompyuter"),
+    items: [t("Uzilgan zanjirlarni birinçi köradi"), t("Bemorni bosadi — sabab va dinamika"), t("«Qabul qildim» yoki «Kasalxonadan javob berildi»")] },
+  { href: "/doctor", icon: "steth", task: "№11", title: t("Oilaviy şifokor"), who: t("Oilaviy poliklinika · telefon yoki kompyuter"),
+    items: [t("Javob berilgan bemorlarni köradi"), t("24 soat içida taşrif buyuradi"), t("«Taşrif qildim»ni bosadi")] },
+].map(m => `<a class="card mod" href="${m.href}"><div class="top"><div class="ico">${ic(m.icon, 22)}</div><span class="tag">${t("Vazifa")} ${m.task}</span></div>
+  <h3>${m.title}</h3><div class="who">${m.who}</div><ol>${m.items.map(x => `<li>${x}</li>`).join("")}</ol>
+  <span class="btn btn-soft">${t("Oçiş")} ${ic("arrow", 16)}</span></a>`).join("");
+$("roadmap").innerHTML = `${ic("link", 16)} ${t("Keyingi modullar xuddi şu zanjirda:")}
+  <span class="tag">${t("Yurak-qon tomir")}</span><span class="tag">${t("Qandli diabet")}</span><span class="tag">${t("Uyda parvariş")}</span>`;
+
+$("principles").innerHTML = [
+  ["file", t("Oçiq qoidalar"), t("Zona JSST va klinik protokollar asosidagi qoidalar bilan belgilanadi. Har bir xulosada qoida raqami körsatiladi.")],
+  ["up", t("AI faqat kötaradi"), t("AI xavotirni oşira oladi, lekin heç qaçon bekor qila olmaydi. Yakuniy qaror — şifokorda.")],
+  ["help", t("Noma'lum ≠ me'yor"), t("Bosim yoki gemoglobin kiritilmagan bölsa, bemor heç qaçon «yaşil» bölmaydi — tizim tekşirişni söraydi.")],
+].map(([i, h, p]) => `<div class="card pr">${ic(i, 22)}<h3>${h}</h3><p>${p}</p></div>`).join("");
+
+$("try").innerHTML = [
+  ["/nurse", t("Hamşira ilovasini oçing"), t("<b>Bahromova Naima</b>ni tanlang → «Qölda» → bosim <code>152</code> / <code>98</code>, oqsil <code>0.6</code> → «Tasdiqlaş va saqlaş»."), t("Hamşira ilovasi")],
+  ["/dashboard", t("Mutaxassis panelini oçing"), t("Naima <b>qizil zonaga</b> ötdi, signal çaladi. Jonli zanjirda «Mutaxassis» böğini sariq — taymer ketyapti. «Qabul qildim»ni bosing."), t("Mutaxassis paneli")],
+  ["/doctor", t("Oilaviy şifokorga öting"), t("Panelda «Kasalxonadan javob berildi»ni bosing → bu sahifada <b>24 soatlik çaqiruv</b> paydo böladi."), t("Oilaviy şifokor")],
+].map(([h, title, p, b], k) => `<div class="card tr"><div class="n">${k + 1}</div><h3>${title}</h3><p>${p}</p>
+  <a class="btn btn-secondary" href="${h}">${b} ${ic("arrow", 16)}</a></div>`).join("");
+
+async function stats() {
+  try {
+    const s = await api("/api/stats"), z = s.by_zone;
+    $("s-total").textContent = s.total;
+    for (const k of ["red", "yellow", "green"]) {
+      $("s-" + k).textContent = z[k]; $("b-" + k).style.width = (100 * z[k] / Math.max(s.total, 1)) + "%";
+    }
+    $("s-broken").textContent = s.chains.broken; $("s-dis").textContent = s.discharged;
+    $("ver").textContent = t("Qoidalar") + " v" + s.rules_version;
+  } catch (e) {}
+}
+async function examples() {
+  try {
+    const pts = await api("/api/patients");
+    const br = pts.find(p => p.chain_status === "broken" && p.chain_break_key === "specialist") || pts.find(p => p.chain_status === "broken");
+    const ok = pts.find(p => p.chain_status === "ok" && p.status === "discharged") || pts.find(p => p.chain_status === "ok");
+    for (const [k, p] of [["ex1", br], ["ex2", ok]]) {
+      if (!p) continue;
+      const d = await api("/api/patients/" + p.id);
+      $(k + "-name").textContent = d.patient.full_name + " · " + d.patient.district;
+      $(k + "-pill").innerHTML = chainPill(d.chain.status, d.chain.break_at);
+      $(k).innerHTML = chainHTML(d.chain, "h") + chainBanner(d.chain);
+    }
+  } catch (e) {}
+}
+stats(); examples(); setInterval(stats, 5000);
+</script>
+</body>
+</html>

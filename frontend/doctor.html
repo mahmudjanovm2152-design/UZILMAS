@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Oilaviy şifokor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .app { max-width: 880px; margin: 0 auto; padding: 28px 20px 60px; }
+  .how { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 20px; }
+  .how div { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; color: var(--text); background: #fff;
+             border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .how svg { color: var(--blue); margin-top: 1px; }
+  .task { margin-top: 14px; border-left: 4px solid var(--blue); animation: slidein .3s; }
+  .task.late { border-left-color: var(--red); } .task.done { border-left-color: var(--green-dot); opacity: .8; }
+  .task h3 { font-size: 18px; }
+  .meta { display: flex; gap: 14px; flex-wrap: wrap; color: var(--muted); font-size: 13.5px; margin-top: 4px; }
+  .meta span { display: flex; gap: 6px; align-items: center; } .meta svg { width: 15px; height: 15px; }
+  .timer { font-size: 30px; font-weight: 700; letter-spacing: -.02em; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .timer.late { color: var(--red); }
+  .reason { margin-top: 14px; display: flex; gap: 8px; color: var(--ink); font-size: 14px; }
+  .reason svg { color: var(--blue); }
+  .check { margin: 14px 0; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .check > div { background: var(--bg); border: 1px solid var(--line-2); border-radius: 10px; padding: 12px; font-size: 13.5px; }
+  .check b { display: block; color: var(--ink); margin-bottom: 4px; font-size: 13px; }
+  .top { display: flex; justify-content: space-between; align-items: start; gap: 10px; }
+  @media (max-width: 640px) { .how, .check { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="app">
+  <div class="page-head"><div><h1 data-t>Aktiv çaqiruvlar</h1>
+    <p data-t>Statsionardan javob berilgan bemorlar. Har biridan 24 soat içida xabar oling va natijani tasdiqlang.</p></div>
+    <span class="tag blue" id="cnt"></span></div>
+  <div class="how" id="how"></div>
+  <div id="tasks"></div>
+</div>
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+topbar("/doctor", `<span class="tag blue">${t("Vazifa")} №11</span>`); i18n();
+guide("doctor", t("Oilaviy şifokor"), t("Kasalxonadan javob berilgan ona va çaqaloqlar uçun."), [
+  [t("Çaqiruv özi keladi"), t("Tuğruqxona «javob berildi» deganda bemor şu röyxatga tuşadi (Telegramga ham).")],
+  [t("24 soat içida taşrif"), t("Taymer qolgan vaqtni körsatadi. Ona va çaqaloqni röyxat böyiça tekşiring.")],
+  [t("«Taşrif qildim»ni bosing"), t("Bosilmasa, muddat tugaganda boş şifokorga avtomatik xabar boradi.")],
+]);
+document.getElementById("how").innerHTML = [
+  ["hospital", t("Kasalxona bemorga javob berganda çaqiruv avtomatik keladi")],
+  ["clock", t("24 soatlik taymer: bemorni köring yoki qönğiroq qiling")],
+  ["up", t("Tasdiqlanmasa — boş şifokorga avtomatik kötariladi")],
+].map(([i, x]) => `<div>${ic(i, 18)}<span>${x}</span></div>`).join("");
+
+let tasks = [];
+function left(due) {
+  const ms = new Date(due.replace(" ", "T")) - new Date();
+  const s = Math.abs(Math.floor(ms / 1000)), h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), sec = s % 60;
+  return { late: ms < 0, txt: (ms < 0 ? "−" : "") + `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}` };
+}
+// Kartalar faqat ma'lumot özgarganda qayta çiziladi; taymer esa har soniyada faqat raqamni yangilaydi.
+function draw() {
+  const open = tasks.filter(k => !k.acknowledged_at).length;
+  document.getElementById("cnt").textContent = t("{0} ta oçiq", open);
+  setHTML("tasks", tasks.map(k => {
+    const done = !!k.acknowledged_at;
+    return `<div class="card card-b task ${done ? "done" : ""}" data-id="${k.id}" ${done ? "" : `data-due="${esc(k.due_at)}"`}>
+      <div class="top"><div><h3>${esc(k.full_name)}</h3>
+        <div class="meta"><span>${ic("pin")}${esc(k.district)}, ${esc(k.mahalla)}</span><span>${ic("phone")}${esc(k.phone || "—")}</span></div></div>
+        <div style="text-align:right">${done ? `<span class="pill z-green">${ic("check", 14)}${t("Bajarildi")}</span>`
+          : `<div class="timer"></div><div class="muted tl" style="font-size:12px"></div>`}</div></div>
+      <div class="reason">${ic("hospital", 16)}<span>${esc(k.message || "")}</span></div>
+      <div class="check">
+        <div><b>${t("Ona")}</b>${t("Bosim, qon ketiş, harorat, boş oğriği, kayfiyat")}</div>
+        <div><b>${t("Çaqaloq")}</b>${t("Emişi, harorati, sariqlik, kindik holati")}</div></div>
+      ${done ? `<div class="muted" style="font-size:13.5px">${t("Tasdiqladi:")} ${esc(t(k.acknowledged_by || ""))} · ${fmtTime(k.acknowledged_at)}</div>`
+        : `${k.escalated_at ? `<div class="pill z-red" style="margin-bottom:12px">${ic("up", 14)}${t("Boş şifokorga kötarildi")}</div>` : ""}
+           <button class="btn btn-primary btn-block btn-lg" onclick="done(${k.id})">${ic("check")}${t("Taşrif qildim — holati qoniqarli")}</button>`}
+    </div>`;
+  }).join("") || `<div class="card empty" style="margin-top:16px">${ic("checkc")}<br><b style="color:var(--ink)">${t("Hozirça aktiv çaqiruv yöq")}</b><br>
+     ${t("Mutaxassis panelida «Kasalxonadan javob berildi» bosilganda çaqiruv şu yerda paydo böladi.")}</div>`);
+  tick();
+}
+function tick() {
+  document.querySelectorAll(".task[data-due]").forEach(card => {
+    const L = left(card.dataset.due);
+    const tm = card.querySelector(".timer"), tl = card.querySelector(".tl");
+    if (tm.textContent !== L.txt) tm.textContent = L.txt;
+    tm.classList.toggle("late", L.late); card.classList.toggle("late", L.late);
+    const lbl = L.late ? t("muddat ötdi") : t("qolgan vaqt");
+    if (tl.textContent !== lbl) tl.textContent = lbl;
+  });
+}
+async function load() { try { tasks = await api("/api/doctor/tasks"); draw(); } catch (e) {} }
+async function done(id) {
+  await api(`/api/alerts/${id}/ack`, { method: "POST", body: JSON.stringify({ by: "Oilaviy şifokor" }) });
+  toast(t("Tasdiqlandi")); load();
+}
+load(); setInterval(load, 4000); setInterval(tick, 1000);
+</script>
+</body>
+</html>
