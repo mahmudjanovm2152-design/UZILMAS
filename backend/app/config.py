@@ -23,7 +23,7 @@ def load_env(path: Path = None) -> None:
             LOADED.append(str(p))
 
 
-SETUP_KEYS = ["GEMINI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_SPECIALIST_CHAT_ID", "TELEGRAM_DOCTOR_CHAT_ID",
+SETUP_KEYS = ["CRITICAL_MINUTES", "GEMINI_API_KEY", "TELEGRAM_BOT_TOKEN", "TELEGRAM_SPECIALIST_CHAT_ID", "TELEGRAM_DOCTOR_CHAT_ID",
               "TELEGRAM_HEAD_CHAT_ID", "WEBAPP_URL", "ESCALATE_MINUTES", "ACTIVE_CALL_MINUTES", "AISHA_API_KEY", "CARTO_API_KEY"]
 
 
@@ -37,7 +37,10 @@ def save_user_env(values: dict) -> Path:
                 cur[k.strip()] = v.strip()
     for k, v in values.items():
         if k in SETUP_KEYS and v is not None:
-            v = str(v).strip().strip('"').strip("'")
+            v = str(v).strip()
+            if "=" in v and k != "WEBAPP_URL":          # "KALIT = 123" deb yozilsa — faqat qiymat olinadi
+                v = v.split("=", 1)[1]
+            v = v.strip().strip('"').strip("'").strip()
             if v:
                 cur[k] = v
                 os.environ[k] = v

@@ -47,6 +47,11 @@ def active_call_minutes() -> float:
     return _num("ACTIVE_CALL_MINUTES", 24 * 60)
 
 
+def critical_minutes() -> float:
+    """Qizil signal şunça vaqt javobsiz qolsa — KRITIK: oilaviy şifokor + boş şifokor, 103 tavsiyasi."""
+    return _num("CRITICAL_MINUTES", 120)
+
+
 def now() -> datetime:
     return datetime.now().replace(microsecond=0)
 
@@ -127,9 +132,10 @@ async def create_red_alert(p: dict, assessment: dict, ga) -> int:
         if open_:
             return open_["id"]
         due = now() + timedelta(minutes=escalate_minutes())
-        cur = c.execute("""INSERT INTO alerts (patient_id, kind, message, recipient, due_at)
-                           VALUES (?,?,?,?,?)""",
-                        (p["id"], "red_zone", assessment["summary"], "specialist", due.isoformat(sep=" ")))
+        cur = c.execute("""INSERT INTO alerts (patient_id, kind, message, recipient, due_at, created_at)
+                           VALUES (?,?,?,?,?,?)""",
+                        (p["id"], "red_zone", assessment["summary"], "specialist", due.isoformat(sep=" "),
+                         now().isoformat(sep=" ")))
         aid = cur.lastrowid
     rows = [[{"text": "📋 Bemor kartasi", "url": f"{webapp_url()}/dashboard?p={p['id']}"}]] if webapp_url() else None
     await send(_env("TELEGRAM_SPECIALIST_CHAT_ID"), red_text(p, assessment, ga), ("✅ Qabul qildim", f"ack:{aid}"), rows)
@@ -179,7 +185,52 @@ async def escalate_due() -> list[int]:
                    f"👤 {html.escape(r['full_name'])} · {html.escape(r['district'])} · 📞 {html.escape(r['phone'] or '-')}\n"
                    f"📝 {html.escape(r['message'] or '')}",
                    ("✅ Nazoratga oldim", f"ack:{r['id']}"))
+    await escalate_critical()
     return [r["id"] for r in rows]
+
+
+def critical_text(r: dict, hours: float) -> str:
+    e = html.escape
+    return "\n".join([
+        f"🚨 <b>KRITIK: {hours:g} soatdan beri javob yöq</b>",
+        f"👤 {e(r['full_name'])} · {e(r['district'] or '')} · 📞 {e(r.get('phone') or '-')}",
+        f"📝 {e(r.get('message') or '')}",
+        f"👨‍⚕️ Oilaviy şifokor ({e(r.get('family_doctor') or '-')}) darhol bemor bilan bog‘lansin.",
+        "☎️ Bemor javob bermasa yoki holat og‘ir bölsa — <b>103 tez yordam</b> çaqiring.",
+        "<i>Uzilmas · bemor zanjiri uzilmaydi</i>",
+    ])
+
+
+async def escalate_critical(force: bool = False) -> list[int]:
+    """Qizil signal CRITICAL_MINUTES içida tasdiqlanmasa (yoki demo uçun force) — kritik bosqiç."""
+    border = (now() - timedelta(minutes=critical_minutes())).isoformat(sep=" ")
+    t = now().isoformat(sep=" ")
+    q = """SELECT a.*, p.full_name, p.district, p.phone, p.family_doctor FROM alerts a JOIN patients p ON p.id=a.patient_id
+           WHERE a.kind='red_zone' AND a.acknowledged_at IS NULL AND a.critical_at IS NULL"""
+    with session() as c:
+        rows = [dict(r) for r in (c.execute(q) if force else c.execute(q + " AND a.created_at <= ?", (border,)))]
+        for r in rows:
+            c.execute("UPDATE alerts SET critical_at=? WHERE id=?", (t, r["id"]))
+    hours = round(critical_minutes() / 60, 2)
+    for r in rows:
+        txt = critical_text(r, hours)
+        for chat in {_env("TELEGRAM_DOCTOR_CHAT_ID") or _env("TELEGRAM_SPECIALIST_CHAT_ID"), _env("TELEGRAM_HEAD_CHAT_ID")}:
+            await send(chat, txt, ("✅ Bemor bilan bog‘landim", f"ack:{r['id']}"))
+    return [r["id"] for r in rows]
+
+
+def critical_ack(aid: int, by: str, action: str) -> Optional[dict]:
+    """Kritik signal: "Şifokor bog‘landi" yoki "103 çaqirildi" — kim, qaçon (javobgarlik jurnali)."""
+    label = {"doctor": "Şifokor bog‘landi", "103": "103 çaqirildi"}.get(action, action)
+    with session() as c:
+        a = c.execute("SELECT * FROM alerts WHERE id=?", (aid,)).fetchone()
+        if not a:
+            return None
+        t = now().isoformat(sep=" ")
+        c.execute("UPDATE alerts SET critical_ack_at=?, critical_ack_by=? WHERE id=?", (t, f"{by} — {label}", aid))
+        if not a["acknowledged_at"]:
+            c.execute("UPDATE alerts SET acknowledged_at=?, acknowledged_by=? WHERE id=?", (t, by, aid))
+        return dict(c.execute("SELECT * FROM alerts WHERE id=?", (aid,)).fetchone())
 
 
 # ---------------- Fon vazifalari ----------------

@@ -52,19 +52,25 @@ document.getElementById("lang").innerHTML = langSwitch();
 document.getElementById("slogan").textContent = t("Bemor zanjiri uzilmaydi");
 document.getElementById("l-total").textContent = t("Hozir kuzatuvda");
 document.getElementById("l-broken").textContent = t("Uzilgan zanjirlar");
-document.getElementById("h").textContent = t("Kim sifatida kirasiz?");
-document.getElementById("sub").textContent = t("Rolingizni tanlang — kerakli ekran oçiladi.");
+document.getElementById("h").textContent = USER ? t("Salom, {0}!", USER.full_name) : t("Kim sifatida kirasiz?");
+document.getElementById("sub").textContent = USER ? t("Davom etiş uçun bölimingizni oçing.") : t("Rolingizni tanlang — login sahifasi oçiladi.");
 document.getElementById("more").textContent = t("Platforma haqida");
-document.getElementById("roles").innerHTML = [
-  ["/nurse", "user", t("Hamşira"), t("Taşrif ma'lumotlarini kiritiş (rasm, ovoz, qölda)")],
-  ["/dashboard", "grid", t("Mutaxassis paneli"), t("Xavf zonalari, jonli zanjir, ogohlantirişlar")],
-  ["/doctor", "steth", t("Oilaviy şifokor"), t("Aktiv çaqiruvlar va 24 soatlik taymer")],
-].map(([h, i, title, p]) => `<a class="card role" href="${h}" onclick="haptic('success')"><div class="ico">${ic(i)}</div>
+const ROLE_TILES = [
+  ["/login?u=qabul", "desk", t("Qabulxona"), t("Yangi bemor: AI kartani töldiradi, javobgar avtomatik")],
+  ["/login?u=hamshira", "user", t("Hamşira"), t("Taşrif ma'lumotlarini kiritiş (rasm, ovoz, qölda)")],
+  ["/login?u=shifokor", "steth", t("Şifokor"), t("Xavf zonalari, jonli zanjir, AI xulosa")],
+  ["/login?u=bosh", "shield", t("Boş şifokor"), t("Hamma bölimlar va kritik signallar (103)")],
+  ["/login?u=bemor", "heart", t("Bemor"), t("Mening kabinetim va AI yordamçi")],
+];
+const MINE = USER ? PAGES.filter(([h]) => (ROLE_PAGES[USER.role] || []).includes(h)).map(([h, i, title]) => [h, i, title, ""]) : null;
+document.getElementById("roles").innerHTML = (MINE || ROLE_TILES).map(([h, i, title, p]) => `<a class="card role" href="${h}" onclick="haptic('success')"><div class="ico">${ic(i)}</div>
   <div><h3>${title}</h3><p>${p}</p></div><span class="chev">${ic("arrow", 18)}</span></a>`).join("");
-api("/api/stats").then(s => {
+if (USER) api("/api/stats").then(s => {
   document.getElementById("s-total").textContent = s.total;
   document.getElementById("s-broken").textContent = s.chains.broken;
 }).catch(() => {});
+if (USER) document.getElementById("roles").insertAdjacentHTML("beforeend",
+  `<button class="btn btn-secondary btn-block" style="margin-top:8px" onclick="logout()">${ic("logout")}${t("Çiqiş")}</button>`);
 </script>
 </body>
 </html>

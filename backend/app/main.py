@@ -18,11 +18,14 @@ from typing import Optional
 
 from fastapi import FastAPI, File, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import chain, notify, rules
+import random
+from datetime import datetime, timedelta
+
+from . import ai, auth, chain, notify, rules
 from .alphabet import to_new
 from .config import load_env, save_user_env
 from .db import init_db, row_to_visit_dict, session
@@ -63,6 +66,27 @@ app = FastAPI(title="Uzilmas API", version="0.3.0", lifespan=lifespan,
               description="Homilador ayollarni xavf zonalari böyiça monitoring (№9), "
                           "hamşira offline kiritişi (№10), javob berilgandan keyin aktiv çaqiruv (№11)")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+
+@app.middleware("http")
+async def guard(request: Request, call_next):
+    """Har bir API so‘rovi: kim kirgan (token) va unga bu bölim ruxsatmi (rol)."""
+    path = request.url.path
+    request.state.user = None
+    if auth.enabled() and path.startswith("/api/") and not path.startswith(auth.PUBLIC_API):
+        token = request.headers.get("authorization", "").removeprefix("Bearer ").strip()
+        u = auth.user_by_token(token)
+        if not u:
+            return JSONResponse({"detail": "Tizimga kiring"}, status_code=401)
+        if not auth.allowed(u["role"], path):
+            return JSONResponse({"detail": "Bu bölimga ruxsat yöq"}, status_code=403)
+        request.state.user = u
+    return await call_next(request)
+
+
+def who(request: Request, default: str = "Dashboard") -> str:
+    u = getattr(request.state, "user", None)
+    return f"{u['full_name']} ({u['role_uz']})" if u else default
 
 
 # ---------- Modellar ----------
@@ -137,7 +161,8 @@ def _brief(p: dict, visits: list, a: rules.Assessment, alerts: Optional[list] = 
         "status": p["status"], "zone": a.zone, "summary": a.summary(lang),
         "trend_raised": a.trend_raised, "last_visit": last.get("date"), "ga_weeks": last.get("ga_weeks"),
         "chain_status": ch["status"], "chain_break": ch["break_at"], "chain_break_key": ch["break_key"],
-        "chain_reason": ch["reason"],
+        "chain_reason": ch["reason"], "plan": p.get("plan") or "bepul", "created_at": p.get("created_at"),
+        "family_doctor": p.get("family_doctor"),
     }
 
 
@@ -391,8 +416,8 @@ def list_alerts(open_only: bool = False, kind: Optional[str] = None, lang: str =
 
 
 @app.post("/api/alerts/{aid}/ack")
-def ack_alert(aid: int, body: AckIn):
-    a = notify.acknowledge(aid, body.by)
+def ack_alert(aid: int, body: AckIn, request: Request):
+    a = notify.acknowledge(aid, who(request, body.by))
     if not a:
         raise HTTPException(404, "Ogohlantiriş topilmadi")
     return a
@@ -424,6 +449,357 @@ def doctor_tasks(lang: str = "uz"):
     return list_alerts(open_only=False, kind="active_call", lang=lang)
 
 
+# ---------- Ommaviy (boş sahifa uçun, kiriş talab qilinmaydi) ----------
+@app.get("/api/public/overview")
+def public_overview(lang: str = "uz"):
+    lang = _lang(lang)
+    pts = _all_patients(lang=lang)
+    br = next((p for p in pts if p["chain_status"] == "broken" and p["chain_break_key"] == "specialist"), None) or \
+        next((p for p in pts if p["chain_status"] == "broken"), None)
+    ok = next((p for p in pts if p["chain_status"] == "ok" and p["status"] == "discharged"), None) or \
+        next((p for p in pts if p["chain_status"] == "ok"), None)
+    ex = []
+    for p in (br, ok):
+        if p:
+            d = get_patient(p["id"], lang)
+            ex.append({"full_name": d["patient"]["full_name"], "district": d["patient"]["district"], "chain": d["chain"]})
+    return {"stats": stats(), "examples": ex}
+
+
+# ---------- Kiriş ----------
+class LoginIn(BaseModel):
+    username: str = Field(..., max_length=40)
+    password: str = Field(..., max_length=100)
+
+
+@app.post("/api/login")
+def login(body: LoginIn):
+    u = auth.login(body.username, body.password)
+    if not u:
+        raise HTTPException(401, "Login yoki parol notöğri")
+    return u
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    auth.logout(request.headers.get("authorization", "").removeprefix("Bearer ").strip())
+    return {"ok": True}
+
+
+@app.get("/api/me")
+def me(request: Request):
+    return request.state.user or {"username": "demo", "role": "bosh", "full_name": "Demo", "home": "/dashboard",
+                                  "role_uz": "Boş şifokor", "role_ru": "Главный врач", "patient_id": None}
+
+
+# ---------- AI: şifokor xulosasi, jim qoliş xavfi ----------
+def _context(c, pid: int, lang: str) -> dict:
+    p, visits, a = _load(c, pid)
+    alerts = [dict(r) for r in c.execute("SELECT * FROM alerts WHERE patient_id=? ORDER BY id DESC", (pid,))]
+    appts = [dict(r) for r in c.execute("SELECT * FROM appointments WHERE patient_id=? ORDER BY at DESC", (pid,))]
+    msgs = [dict(r) for r in c.execute("SELECT * FROM messages WHERE patient_id=? ORDER BY id DESC", (pid,))]
+    ch = chain.build(p, visits, a, alerts, lang=lang)
+    risk = ai.noshow_risk(p, visits, appts, msgs, a.zone, ch["status"], chain.interval_for(p, a.zone), lang)
+    return {"patient": p, "visits": visits, "a": a, "assessment": a.as_dict(lang), "alerts": alerts,
+            "appointments": appts, "messages": msgs, "chain": ch, "risk": risk}
+
+
+@app.get("/api/patients/{pid}/ai-summary")
+async def ai_summary(pid: int, lang: str = "uz"):
+    lang = _lang(lang)
+    with session() as c:
+        ctx = _context(c, pid, lang)
+    data = {k: ctx[k] for k in ("patient", "visits", "assessment", "chain", "risk")}
+    data["patient"] = {k: data["patient"].get(k) for k in ("full_name", "age", "plan", "prev_preeclampsia",
+                                                          "multiple_pregnancy", "status", "complaint")}
+    return {**await ai.summary(data, lang), "risk": ctx["risk"]}
+
+
+@app.get("/api/risk")
+def risk_list(limit: int = 8, lang: str = "uz"):
+    """Jim qoliş xavfi eng yuqori bemorlar — "bugun qöng‘iroq qiling" röyxati."""
+    lang = _lang(lang)
+    out = []
+    with session() as c:
+        ids = [r["id"] for r in c.execute("SELECT id FROM patients WHERE status='pregnant'")]
+        for pid in ids:
+            ctx = _context(c, pid, lang)
+            p = ctx["patient"]
+            out.append({"id": pid, "full_name": p["full_name"], "phone": p["phone"], "nurse": p["nurse"],
+                        "plan": p.get("plan") or "bepul", "zone": ctx["a"].zone, **ctx["risk"]})
+    out.sort(key=lambda x: -x["score"])
+    return out[:limit]
+
+
+# ---------- Kritik bosqiç: qizil > 2 soat javobsiz ----------
+class CriticalAckIn(BaseModel):
+    action: str = Field(..., pattern="^(doctor|103)$")
+
+
+@app.post("/api/alerts/critical-now")
+async def critical_now():
+    """Demo: "2 soat ötdi" — barça javobsiz qizil signallarni kritik bosqiçga ötkazadi."""
+    return {"critical": await notify.escalate_critical(force=True)}
+
+
+@app.post("/api/alerts/{aid}/critical-ack")
+def critical_ack(aid: int, body: CriticalAckIn, request: Request):
+    a = notify.critical_ack(aid, who(request), body.action)
+    if not a:
+        raise HTTPException(404, "Ogohlantiriş topilmadi")
+    return a
+
+
+# ---------- Qabulxona ----------
+PRICE_VISIT = 550_000           # söm, xususiy klinika qabuli (Toşkent, 2026)
+PREPAY_SHARE = 0.5              # premium: 50% oldindan
+NURSES = ["M. Ahmedova", "G. Usmonova", "S. Rasulova", "N. Tursunova"]
+DOCTORS = ["Dr. A. Sodiqov", "Dr. F. Xudoyberdiyeva", "Dr. B. Qosimov", "Dr. Z. Mamatova"]
+PLANS = {
+    "bepul": {"uz": ["Patronaj: har 7/14/28 kunda (zonaga qarab)", "Qizil zona — mutaxassisga signal",
+                     "Jonli zanjir va eskalatsiya", "AI yordamçi (savol-javob)"],
+              "ru": ["Патронаж: каждые 7/14/28 дней (по зоне)", "Красная зона — сигнал специалисту",
+                     "Живая цепочка и эскалация", "AI-помощник (вопросы)"]},
+    "premium": {"uz": ["Şaxsiy oilaviy şifokor — 24 soat içida uyga keladi", "Patronaj 2 baravar tez-tez: har 3/7/14 kunda",
+                       "Har hafta AI tekşiruvi + şifokor köradi", "Qizil signal — şaxsiy şifokorga ham, 2 soatda kritik",
+                       "50% oldindan tölov — vizit kafolatlangan"],
+                "ru": ["Личный семейный врач — визит на дом в течение 24 часов", "Патронаж в 2 раза чаще: каждые 3/7/14 дней",
+                       "Еженедельная AI-проверка + просмотр врачом", "Красный сигнал — и личному врачу, через 2 часа критично",
+                       "Предоплата 50% — визит гарантирован"]},
+}
+
+
+class IntakeIn(BaseModel):
+    text: str = Field(..., min_length=3, max_length=3000)
+
+
+@app.post("/api/ai/intake")
+async def ai_intake(body: IntakeIn):
+    """Qabulxona AI yordamçisi: erkin matn -> forma (xodim tekşirib, tasdiqlaydi)."""
+    from .seed import DISTRICTS
+    return await ai.intake(body.text, list(DISTRICTS), rules.DANGER_SIGNS)
+
+
+class RegisterIn(BaseModel):
+    full_name: str = Field(..., min_length=3, max_length=120)
+    age: Optional[int] = Field(None, ge=12, le=60)
+    phone: Optional[str] = Field(None, max_length=40)
+    district: str
+    ga_weeks: Optional[float] = Field(None, ge=0, le=45)
+    sbp: Optional[int] = Field(None, ge=50, le=260)
+    dbp: Optional[int] = Field(None, ge=30, le=180)
+    hb_g_l: Optional[float] = Field(None, ge=30, le=200)
+    symptoms: list[str] = []
+    complaint: Optional[str] = Field(None, max_length=500)
+    plan: str = Field("bepul", pattern="^(bepul|premium)$")
+    visit_at: Optional[str] = None
+    prev_preeclampsia: bool = False
+    multiple_pregnancy: bool = False
+
+
+_POLYS: dict = {}
+
+
+def _assign(c, district: str, zone: str) -> dict:
+    """Javobgarni tanlaş: tumandagi eng kam yuklangan hamşira, umumiy eng kam yuklangan oilaviy şifokor."""
+    def load(col, name, where=""):
+        return c.execute(f"SELECT COUNT(*) n FROM patients WHERE {col}=? AND status='pregnant' {where}",
+                         (name, *([district] if where else []))).fetchone()["n"]
+    nurse = min(NURSES, key=lambda n: (load("nurse", n, "AND district=?"), n))
+    doctor = min(DOCTORS, key=lambda d: (load("family_doctor", d), d))
+    return {"nurse": nurse, "family_doctor": doctor,
+            "nurse_load": load("nurse", nurse, "AND district=?"), "doctor_load": load("family_doctor", doctor)}
+
+
+@app.post("/api/reception/register")
+async def reception_register(body: RegisterIn, request: Request, lang: str = "uz"):
+    from .seed import DISTRICTS, _point, _polys
+    lang = _lang(lang)
+    if body.district not in DISTRICTS:
+        raise HTTPException(422, f"Tuman notöğri. Mumkin: {list(DISTRICTS)}")
+    bad = [s for s in body.symptoms if s not in rules.DANGER_SIGNS]
+    if bad:
+        raise HTTPException(422, f"Noma'lum belgi: {bad}")
+    if "polys" not in _POLYS:
+        _POLYS["polys"] = _polys()
+    lat, lon = _point(random.Random(), body.district, _POLYS["polys"])
+    by = who(request, "Qabulxona")
+    today = _date.today().isoformat()
+    has_vitals = any(v is not None for v in (body.sbp, body.dbp, body.hb_g_l)) or body.symptoms
+    with session() as c:
+        # dastlabki zona — javobgarni tanlaşdan oldin (qizil bölsa ham xuddi şu tartib)
+        draft = [rules.Visit(date=today, ga_weeks=body.ga_weeks, sbp=body.sbp, dbp=body.dbp, hb_g_l=body.hb_g_l,
+                             symptoms=body.symptoms)] if has_vitals else []
+        pre = rules.assess(rules.Patient(age=body.age, multiple_pregnancy=body.multiple_pregnancy,
+                                         prev_preeclampsia=body.prev_preeclampsia), draft)
+        resp = _assign(c, body.district, pre.zone)
+        cur = c.execute(
+            """INSERT INTO patients (full_name, age, phone, district, mahalla, lat, lon, multiple_pregnancy,
+                   prev_preeclampsia, nurse, family_doctor, plan, complaint, created_at, created_by)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'),?)""",
+            (to_new(body.full_name).strip(), body.age, body.phone, body.district, "", lat, lon,
+             int(body.multiple_pregnancy), int(body.prev_preeclampsia), resp["nurse"], resp["family_doctor"],
+             body.plan, body.complaint, by))
+        pid = cur.lastrowid
+        if has_vitals:
+            c.execute("""INSERT INTO visits (patient_id, date, ga_weeks, sbp, dbp, hb_g_l, symptoms, source)
+                         VALUES (?,?,?,?,?,?,?,?)""",
+                      (pid, today, body.ga_weeks, body.sbp, body.dbp, body.hb_g_l, json.dumps(body.symptoms), "manual"))
+        at = body.visit_at or (datetime.now() + timedelta(days=1)).replace(hour=10, minute=0, second=0).strftime("%Y-%m-%d %H:%M")
+        price = PRICE_VISIT if body.plan == "premium" else 0
+        prepaid = int(price * PREPAY_SHARE)
+        ap = c.execute("""INSERT INTO appointments (patient_id, at, plan, price, prepaid, created_by)
+                          VALUES (?,?,?,?,?,?)""", (pid, at.replace("T", " "), body.plan, price, prepaid, by)).lastrowid
+        c.commit()
+        p, visits, a = _load(c, pid)
+    alert_id = None
+    if a.zone == "red":
+        alert_id = await notify.create_red_alert(p, a.as_dict(), body.ga_weeks)
+    if body.plan == "premium":       # şaxsiy oilaviy şifokor 24 soat içida uyga
+        due = notify.now() + timedelta(hours=24)
+        with session() as c:
+            c.execute("""INSERT INTO alerts (patient_id, kind, message, recipient, due_at, created_at)
+                         VALUES (?,?,?,?,?,?)""",
+                      (pid, "active_call", "Premium: birinçi uy taşrifi (24 soat)", "family_doctor",
+                       due.isoformat(sep=" "), notify.now().isoformat(sep=" ")))
+    with session() as c:
+        ctx = _context(c, pid, lang)
+    why = (f"{body.district}: eng kam yuklangan hamşira ({resp['nurse_load']} bemor), "
+           f"oilaviy şifokor — {resp['doctor_load']} bemor") if lang == "uz" else \
+          (f"{body.district}: наименее загруженная медсестра ({resp['nurse_load']} пац.), "
+           f"семейный врач — {resp['doctor_load']} пац.")
+    return {"patient_id": pid, "zone": a.zone, "assessment": a.as_dict(lang), "nurse": resp["nurse"],
+            "family_doctor": resp["family_doctor"], "why": why, "alert_id": alert_id, "plan": body.plan,
+            "appointment": {"id": ap, "at": at, "price": price, "prepaid": prepaid}, "risk": ctx["risk"],
+            "chain": ctx["chain"]}
+
+
+@app.get("/api/reception/plans")
+def reception_plans(lang: str = "uz"):
+    lang = _lang(lang)
+    return {"price": PRICE_VISIT, "prepay_share": PREPAY_SHARE,
+            "plans": {k: v[lang] for k, v in PLANS.items()}}
+
+
+@app.get("/api/live")
+def live(limit: int = 12, lang: str = "uz"):
+    """Jonli lenta: qabulxonada yozilganlar (kim javobgar), kritik signallar."""
+    lang = _lang(lang)
+    with session() as c:
+        rows = [dict(r) for r in c.execute(
+            """SELECT p.id, p.full_name, p.district, p.nurse, p.family_doctor, p.plan, p.created_at, p.created_by,
+                      a.at, a.status AS appt_status, a.prepaid, a.price, a.id AS appt_id
+               FROM patients p LEFT JOIN appointments a ON a.patient_id=p.id
+               WHERE p.created_at IS NOT NULL ORDER BY p.created_at DESC, p.id DESC LIMIT ?""", (limit,))]
+        for r in rows:
+            _, _, a = _load(c, r["id"])
+            r["zone"] = a.zone
+        crit = [dict(r) for r in c.execute(
+            """SELECT a.id, a.patient_id, a.created_at, a.critical_at, p.full_name, p.phone, p.family_doctor, p.district
+               FROM alerts a JOIN patients p ON p.id=a.patient_id
+               WHERE a.critical_at IS NOT NULL AND a.critical_ack_at IS NULL ORDER BY a.critical_at DESC""")]
+    return {"registrations": rows, "critical": crit, "critical_minutes": notify.critical_minutes(),
+            "now": notify.now().isoformat(sep=" ")}
+
+
+class ApptStatusIn(BaseModel):
+    status: str = Field(..., pattern="^(came|no_show|moved)$")
+
+
+@app.post("/api/appointments/{aid}/status")
+def appointment_status(aid: int, body: ApptStatusIn, request: Request):
+    """Keldi / kelmadi / köçirildi. Kelmasa: premium oldindan tölov qaytarilmaydi, hamşiraga qöng‘iroq vazifasi."""
+    with session() as c:
+        a = c.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone()
+        if not a:
+            raise HTTPException(404, "Qabul topilmadi")
+        if body.status == "moved":
+            new_at = (datetime.fromisoformat(a["at"][:16]) + timedelta(days=7)).strftime("%Y-%m-%d %H:%M")
+            c.execute("UPDATE appointments SET at=?, status='scheduled' WHERE id=?", (new_at, aid))
+        else:
+            c.execute("UPDATE appointments SET status=? WHERE id=?", (body.status, aid))
+        return dict(c.execute("SELECT * FROM appointments WHERE id=?", (aid,)).fetchone())
+
+
+# ---------- Bemor kabineti ----------
+def _my_pid(request: Request) -> int:
+    u = getattr(request.state, "user", None)
+    if u and u.get("patient_id"):
+        return int(u["patient_id"])
+    if not auth.enabled():
+        return 101
+    raise HTTPException(403, "Bemor hisobi emas")
+
+
+@app.get("/api/my/card")
+def my_card(request: Request, lang: str = "uz"):
+    lang = _lang(lang)
+    pid = _my_pid(request)
+    with session() as c:
+        ctx = _context(c, pid, lang)
+    p = ctx["patient"]
+    last = ctx["visits"][-1] if ctx["visits"] else {}
+    crit = next((x for x in ctx["alerts"] if x.get("critical_at") and not x.get("critical_ack_at")), None)
+    open_red = next((x for x in ctx["alerts"] if x["kind"] == "red_zone" and not x["acknowledged_at"]), None)
+    return {"patient": {k: p.get(k) for k in ("id", "full_name", "age", "district", "nurse", "family_doctor", "plan",
+                                              "phone", "status")},
+            "zone": ctx["a"].zone, "summary": ctx["a"].summary(lang), "ga_weeks": last.get("ga_weeks"),
+            "last_visit": last.get("date"), "next_visit_in": max(0, chain.interval_for(p, ctx["a"].zone) - (
+                (_date.today() - _date.fromisoformat(last["date"][:10])).days if last else 0)),
+            "appointments": ctx["appointments"][:3], "messages": list(reversed(ctx["messages"][:20])),
+            "chain": ctx["chain"], "critical": bool(crit), "doctor_notified": bool(open_red),
+            "plan_features": PLANS[p.get("plan") or "bepul"][lang]}
+
+
+class AskIn(BaseModel):
+    text: str = Field(..., min_length=1, max_length=1000)
+
+
+@app.post("/api/my/ask")
+async def my_ask(body: AskIn, request: Request, lang: str = "uz"):
+    """Bemor savoli -> AI triaj. Xavf belgisi bölsa: taşrif sifatida yoziladi -> qoidalar -> şifokorga signal."""
+    lang = _lang(lang)
+    pid = _my_pid(request)
+    with session() as c:
+        p, visits, a = _load(c, pid)
+    last = visits[-1] if visits else {}
+    tr = await ai.triage(body.text, p, a.zone, last.get("ga_weeks"), rules.DANGER_SIGNS, lang)
+    vals = (await parse_text(body.text, rules.DANGER_SIGNS))["values"]
+    bp = {k: vals.get(k) for k in ("sbp", "dbp") if vals.get(k)}
+    if bp.get("sbp") and not bp.get("dbp"):
+        bp = {}
+    alert_id, zone_after = None, a.zone
+    if tr["danger"] or bp:
+        with session() as c:
+            c.execute("""INSERT INTO visits (patient_id, date, ga_weeks, sbp, dbp, symptoms, source)
+                         VALUES (?,?,?,?,?,?,?)""",
+                      (pid, _date.today().isoformat(), last.get("ga_weeks"), bp.get("sbp"), bp.get("dbp"),
+                       json.dumps(tr["danger"]), "manual"))
+            c.commit()
+            p, visits, after = _load(c, pid)
+        zone_after = after.zone
+        if after.zone == "red":
+            alert_id = await notify.create_red_alert(p, after.as_dict(), last.get("ga_weeks"))
+    with session() as c:
+        c.execute("INSERT INTO messages (patient_id, text, reply, danger, source) VALUES (?,?,?,?,?)",
+                  (pid, body.text, tr["reply"], json.dumps(tr["danger"]), tr["source"]))
+    names = rules.DANGER_SIGNS_RU if lang == "ru" else rules.DANGER_SIGNS
+    return {"reply": tr["reply"], "danger": [names[s] for s in tr["danger"]], "zone_before": a.zone,
+            "zone_after": zone_after, "alert_id": alert_id, "source": tr["source"]}
+
+
+@app.post("/api/my/appointments/{aid}/move")
+def my_move(aid: int, request: Request):
+    pid = _my_pid(request)
+    with session() as c:
+        a = c.execute("SELECT * FROM appointments WHERE id=? AND patient_id=?", (aid, pid)).fetchone()
+        if not a:
+            raise HTTPException(404, "Qabul topilmadi")
+        if datetime.fromisoformat(a["at"][:16]) - datetime.now() < timedelta(hours=24):
+            raise HTTPException(409, "24 soatdan kam qoldi — klinikaga qöng‘iroq qiling")
+    return appointment_status(aid, ApptStatusIn(status="moved"), request)
+
+
 # ---------- Sahifalar ----------
 if STATIC.exists():
     app.mount("/static", StaticFiles(directory=STATIC), name="static")
@@ -435,7 +811,7 @@ if STATIC.exists():
     @app.get("/{page}", include_in_schema=False)
     def page(page: str):
         f = STATIC / f"{page}.html"
-        if page in ("dashboard", "nurse", "doctor", "app", "setup") and f.exists():
+        if page in ("dashboard", "nurse", "doctor", "app", "setup", "login", "reception", "patient") and f.exists():
             return FileResponse(f)
         if page in ("sw.js", "manifest.webmanifest"):
             return FileResponse(STATIC / page)

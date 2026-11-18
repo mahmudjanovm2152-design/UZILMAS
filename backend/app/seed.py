@@ -153,6 +153,7 @@ def seed(n: int = 100, rng_seed: int = 17) -> None:
         if n >= 50:   # testlarda (kiçik n) ssenariylar qöşilmaydi
             _chain_scenarios(c, today, rnd, n)
         _demo_patients(c, today, polys)
+        _appointments(c, rnd, n)
     print(f"OK: {n} + 3 demo bemor yaratildi -> {DB_PATH}")
 
 
@@ -234,6 +235,29 @@ def _demo_patients(c, today, polys=None) -> None:
                 """INSERT INTO visits (patient_id, date, ga_weeks, sbp, dbp, protein_g_l, hb_g_l,
                        glucose_fasting, symptoms, source) VALUES (?,?,?,?,?,?,?,?,?,?)""",
                 (pid, d.isoformat(), 24 + 3 * i, sbp, dbp, 0.0, hb, 4.6, "[]", "manual"))
+
+
+def _appointments(c, rnd, n: int) -> None:
+    """Qabullar: bepul va premium (50% oldindan), ba'zilari kelmagan — "jim qoliş xavfi" uçun real manzara."""
+    nowdt = datetime.now().replace(second=0, microsecond=0)
+    fmt = lambda d: d.strftime("%Y-%m-%d %H:%M")
+    for pid in range(1, n + 1):
+        premium = rnd.random() < 0.3
+        price = 550_000 if premium else 0
+        if premium:
+            c.execute("UPDATE patients SET plan='premium' WHERE id=?", (pid,))
+        if rnd.random() < 0.18:   # oldingi qabulga kelmagan
+            c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, status, created_by) VALUES (?,?,?,?,?,?,?)",
+                      (pid, fmt(nowdt - timedelta(days=rnd.randint(3, 12), hours=-10)), "premium" if premium else "bepul",
+                       price, price // 2, "no_show", "Qabulxona"))
+        c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, created_by) VALUES (?,?,?,?,?,?)",
+                  (pid, fmt((nowdt + timedelta(days=rnd.randint(1, 14))).replace(hour=rnd.choice([9, 10, 11, 14, 15]), minute=0)),
+                   "premium" if premium else "bepul", price, price // 2, "Qabulxona"))
+    # Demo bemor (kabinet): premium, 3 kundan keyin qabul, 50% tölangan
+    c.execute("UPDATE patients SET plan='premium' WHERE id=101")
+    c.execute("DELETE FROM appointments WHERE patient_id IN (101,102,103)")
+    c.execute("INSERT INTO appointments (patient_id, at, plan, price, prepaid, created_by) VALUES (?,?,?,?,?,?)",
+              (101, fmt((nowdt + timedelta(days=3)).replace(hour=10, minute=0)), "premium", 550_000, 275_000, "Qabulxona"))
 
 
 if __name__ == "__main__":

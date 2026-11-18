@@ -176,7 +176,8 @@
 topbar("/"); i18n();
 const $ = id => document.getElementById(id);
 $("tagline").innerHTML = ic("shield", 14) + t("Soğliqni saqlaş vazirligi vazifalari №9 · №10 · №11");
-$("cta1").innerHTML = ic("grid") + t("Mutaxassis panelini oçiş");
+$("cta1").innerHTML = ic("user") + (USER ? t("Mening bölimim") : t("Tizimga kiriş"));
+$("cta1").setAttribute("href", USER ? USER.home : "/login");
 $("cta2").innerHTML = t("Qanday sinab köriş") + " " + ic("arrow", 16);
 $("i-link").innerHTML = ic("link"); $("i-home").innerHTML = ic("home");
 $("facts").innerHTML = [
@@ -230,9 +231,11 @@ $("try").innerHTML = [
 ].map(([h, title, p, b], k) => `<div class="card tr"><div class="n">${k + 1}</div><h3>${title}</h3><p>${p}</p>
   <a class="btn btn-secondary" href="${h}">${b} ${ic("arrow", 16)}</a></div>`).join("");
 
+let OV = null;
+async function overview() { OV = await (await fetch("/api/public/overview?lang=" + LANG)).json(); return OV; }
 async function stats() {
   try {
-    const s = await api("/api/stats"), z = s.by_zone;
+    const s = (await overview()).stats, z = s.by_zone;
     $("s-total").textContent = s.total;
     for (const k of ["red", "yellow", "green"]) {
       $("s-" + k).textContent = z[k]; $("b-" + k).style.width = (100 * z[k] / Math.max(s.total, 1)) + "%";
@@ -243,19 +246,16 @@ async function stats() {
 }
 async function examples() {
   try {
-    const pts = await api("/api/patients");
-    const br = pts.find(p => p.chain_status === "broken" && p.chain_break_key === "specialist") || pts.find(p => p.chain_status === "broken");
-    const ok = pts.find(p => p.chain_status === "ok" && p.status === "discharged") || pts.find(p => p.chain_status === "ok");
-    for (const [k, p] of [["ex1", br], ["ex2", ok]]) {
-      if (!p) continue;
-      const d = await api("/api/patients/" + p.id);
-      $(k + "-name").textContent = d.patient.full_name + " · " + d.patient.district;
+    const ex = (OV || await overview()).examples;
+    for (const [k, d] of [["ex1", ex[0]], ["ex2", ex[1]]]) {
+      if (!d) continue;
+      $(k + "-name").textContent = d.full_name + " · " + d.district;
       $(k + "-pill").innerHTML = chainPill(d.chain.status, d.chain.break_at);
       $(k).innerHTML = chainHTML(d.chain, "h") + chainBanner(d.chain);
     }
   } catch (e) {}
 }
-stats(); examples(); setInterval(stats, 5000);
+stats().then(examples); setInterval(stats, 5000);
 </script>
 </body>
 </html>

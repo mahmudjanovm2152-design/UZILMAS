@@ -12,6 +12,7 @@ def client(tmp_path, monkeypatch):
     for k in ("TELEGRAM_BOT_TOKEN", "GEMINI_API_KEY", "AISHA_API_KEY"):
         monkeypatch.setenv(k, "")
     monkeypatch.setenv("ESCALATE_MINUTES", "0")         # darhol eskalatsiya (test uçun)
+    monkeypatch.setenv("UZILMAS_AUTH", "off")
     from app import db, seed, notify, main
     for m in (db, seed, notify, main):
         importlib.reload(m)

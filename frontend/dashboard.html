@@ -104,10 +104,16 @@
   <div class="kpi" id="chip-alert"><div class="ic red" id="k4"></div><div><b id="c-alert">–</b><span data-t>Tasdiqlanmagan ogohlantiriş</span></div></div>
   <div class="kpi"><div class="ic blue" id="k5"></div><div><b id="c-dis">–</b><span data-t>Aktiv çaqiruv (oilaviy şifokor)</span></div></div>
 </div>
+<div id="critbar"></div>
 <div class="grid">
   <div class="col left">
-    <div class="sec"><h4 id="h-al"></h4><span class="muted" data-t>har 3 soniyada yangilanadi</span></div>
-    <div id="alerts"></div>
+    <div class="tabs3" id="ltabs">
+      <button data-k="alerts" class="on"><span data-t>Signallar</span></button>
+      <button data-k="live"><span data-t>Yangi qabul</span><span class="cnt hidden" id="live-cnt"></span></button>
+      <button data-k="risk"><span data-t>Jim qoliş xavfi</span></button>
+    </div>
+    <div class="sec"><h4 id="h-al"></h4><span class="muted" id="h-al-sub" data-t>har 3 soniyada yangilanadi</span></div>
+    <div id="alerts"></div><div id="live" class="hidden"></div><div id="risk" class="hidden"></div>
     <div class="sec" style="margin-top:18px"><h4 id="h-pt"></h4><span class="muted" id="cnt"></span></div>
     <div class="search" id="sbox"><input class="input" id="q" placeholder="Ism, tuman yoki mahalla…" data-tp></div>
     <div class="seg" id="filters">
@@ -125,7 +131,8 @@
 <script src="/static/i18n-ru.js"></script>
 <script src="/static/common.js"></script>
 <script>
-topbar("/dashboard", helpButton("showGuide(true)"));
+guardPage(["shifokor", "bosh"]);
+topbar("/dashboard", `<button class="btn btn-soft btn-sm" onclick="demoCritical()" title="${t("Demo: javobsiz qizil signallar uçun 2 soat ötdi deb hisoblaş")}">${ic("clock", 15)}${t("Demo: 2 soat ötdi")}</button>` + helpButton("showGuide(true)"));
 function showGuide(f) {
   guide("dash", t("Mutaxassis paneli"), t("Ona va bola mutaxassisi Toşkentdagi barça homiladorlarni şu yerda kuzatadi."), [
     [t("Yuqorida — umumiy holat"), t("Qizil karta «Uzilgan zanjir» — kimdir öz vazifasini bajarmagan bemorlar. Bosing — röyxatda faqat ular qoladi.")],
@@ -136,7 +143,19 @@ function showGuide(f) {
 showGuide(false);
 [["k0", "link"], ["k1", "alert"], ["k2", "activity"], ["k3", "checkc"], ["k4", "bell"], ["k5", "home"]].forEach(([id, i]) => document.getElementById(id).innerHTML = ic(i));
 i18n();
-document.getElementById("h-al").innerHTML = ic("bell", 16) + t("Jonli ogohlantirişlar");
+const LT = { alerts: [ic("bell", 16) + t("Jonli ogohlantirişlar"), t("har 3 soniyada yangilanadi")],
+  live: [ic("desk", 16) + t("Qabulxonadan yangi bemorlar"), t("kim javobgar — darhol")],
+  risk: [ic("spark", 16) + t("Bugun qöng‘iroq qiling"), t("AI: kelmay qoliş ehtimoli")] };
+let LTAB = "alerts";
+function setLTab(k) {
+  LTAB = k; document.querySelectorAll("#ltabs button").forEach(b => b.classList.toggle("on", b.dataset.k === k));
+  ["alerts", "live", "risk"].forEach(x => document.getElementById(x).classList.toggle("hidden", x !== k));
+  document.getElementById("h-al").innerHTML = LT[k][0]; document.getElementById("h-al-sub").textContent = LT[k][1];
+  if (k === "risk") loadRisk();
+  if (k === "live") { seenLiveCount = 0; document.getElementById("live-cnt").classList.add("hidden"); }
+}
+document.getElementById("ltabs").onclick = e => { const b = e.target.closest("button"); if (b) setLTab(b.dataset.k); };
+document.getElementById("h-al").innerHTML = LT.alerts[0];
 document.getElementById("h-pt").innerHTML = ic("user", 16) + t("Homilador ayollar");
 document.getElementById("sbox").insertAdjacentHTML("afterbegin", ic("search", 16));
 const EMPTY_DETAIL = `<div class="empty">${ic("pin")}<br><b style="color:var(--ink)">${t("Bemorni tanlang")}</b><br>${t("Xaritadagi nuqtani yoki çapdagi röyxatni bosing.")}</div>`;
@@ -246,7 +265,8 @@ function drawList() {
 
 async function refresh() {
   try {
-    const [st, pts, al] = await Promise.all([api("/api/stats"), api("/api/patients"), api("/api/alerts")]);
+    const [st, pts, al, lv] = await Promise.all([api("/api/stats"), api("/api/patients"), api("/api/alerts"), api("/api/live?limit=10")]);
+    drawLive(lv);
     trackChains(pts);
     patients = pts;
     document.getElementById("c-broken").textContent = st.chains.broken;
@@ -310,13 +330,17 @@ async function openPatient(id, silent, user) {
   setHTML("detail", `
     <div class="card card-b">
       <div style="display:flex;justify-content:space-between;align-items:start;gap:10px">
-        <div><h2>${esc(p.full_name)}</h2><div class="muted" style="font-size:14px">${t("{0} yoş · {1}, {2} mahallasi", p.age, esc(p.district), esc(p.mahalla))}</div></div>
+        <div><h2>${esc(p.full_name)}</h2><div class="muted" style="font-size:14px">${p.mahalla && p.mahalla !== "—" ? t("{0} yoş · {1}, {2} mahallasi", p.age, esc(p.district), esc(p.mahalla)) : t("{0} yoş", p.age) + " · " + esc(p.district)}</div></div>
         ${zonePill(a.zone)}</div>
       <div class="notes">
+        ${p.plan === "premium" ? `<span class="plan-badge premium">${ic("crown")}Premium</span>` : ""}
         ${a.trend_raised ? `<span class="tag" style="background:var(--amber-50);color:var(--amber)">${ic("trend", 14)}${t("Dinamika zonani kötardi")}</span>` : ""}
         ${p.status === "discharged" ? `<span class="tag blue">${ic("home", 14)}${t("Javob berilgan")} · ${esc(p.discharge_label || "")}</span>` : ""}
       </div>
     </div>
+    <div class="card"><div class="card-h"><h3 style="display:flex;gap:8px;align-items:center">${ic("spark", 16)}${t("AI xulosa")}</h3>
+      <button class="btn btn-soft btn-sm" onclick="aiSummary(${p.id})">${t("Tayyorlaş")}</button></div>
+      <div class="card-b" style="padding-top:4px" id="ai-sum">${AI_CACHE[p.id] || `<div class="muted" style="font-size:13.5px">${t("Bir tugmada: holat, dinamika, vizitda nimani tekşiriş kerak.")}</div>`}</div></div>
     <div class="card"><div class="card-h"><h3>${t("Jonli zanjir")}</h3>${chainPill(d.chain.status, d.chain.break_at)}</div>
       <div class="card-b" style="padding-top:4px">${chainBanner(d.chain)}${chainHTML(d.chain, "v")}</div></div>
     <div class="card"><div class="card-h"><h3>${t("Nega bu zona?")}</h3><span class="tag">${t("Qoidalar")} v${esc(a.rules_version)}</span></div><div class="card-b" style="padding-top:6px">
@@ -344,6 +368,77 @@ async function openPatient(id, silent, user) {
 }
 
 async function ack(id) { await api(`/api/alerts/${id}/ack`, { method: "POST", body: JSON.stringify({ by: "OvaBMU mutaxassisi" }) }); toast(t("Tasdiqlandi")); refresh(); }
+
+// ---------- AI xulosa ----------
+const AI_CACHE = {};
+async function aiSummary(id) {
+  const el = document.getElementById("ai-sum"); el.innerHTML = `<div class="muted">${t("AI tayyorlayapti…")}</div>`;
+  try {
+    const r = await api(`/api/patients/${id}/ai-summary`);
+    const col = r.risk.level === "high" ? "var(--red)" : r.risk.level === "mid" ? "var(--amber-dot)" : "var(--green-dot)";
+    AI_CACHE[id] = `<div class="ai-text">${esc(r.text)}</div>
+      <div style="margin-top:12px;font-size:13px;color:var(--ink)"><b>${t("Kelmay qoliş xavfi")}: ${r.risk.score}%</b>
+      <div class="riskbar"><i style="width:${r.risk.score}%;background:${col}"></i></div>
+      <div class="muted" style="font-size:12.5px;margin-top:4px">${esc(r.risk.reasons.join(" · "))}</div></div>
+      <div style="margin-top:8px"><span class="ai-badge">${ic("spark")}${r.source === "gemini" ? "Gemini" : t("Qoidalar (oflayn)")}</span></div>`;
+    if (selected === id) el.innerHTML = AI_CACHE[id];
+  } catch (e) { el.textContent = e.message; }
+}
+
+// ---------- Jonli qabul lentasi + kritik signal (103) ----------
+let seenLive = null, seenLiveCount = 0, seenCrit = new Set();
+function drawLive(lv) {
+  const ids = lv.registrations.map(r => r.id);
+  if (seenLive) {
+    const fresh = lv.registrations.filter(r => !seenLive.has(r.id));
+    if (fresh.length) {
+      const f = fresh[0]; beep();
+      toast(t("Qabulxona: yangi bemor") + " — " + f.full_name + " · " + t("javobgar") + ": " + f.nurse + ", " + f.family_doctor, 5000);
+      if (LTAB !== "live") { seenLiveCount += fresh.length; const c = document.getElementById("live-cnt"); c.textContent = seenLiveCount; c.classList.remove("hidden"); }
+    }
+  }
+  seenLive = new Set(ids);
+  const ST = { scheduled: t("Kutilmoqda"), came: t("Keldi"), no_show: t("Kelmadi"), moved: t("Köçirildi") };
+  setHTML("live", lv.registrations.map(r => `<div class="feed-item" onclick="openPatient(${r.id}, false, true)">
+      <div class="t"><span style="display:flex;gap:8px;align-items:center"><span class="dot ${r.zone}"></span>${esc(r.full_name)}</span>
+        ${r.plan === "premium" ? `<span class="plan-badge premium">${ic("crown")}Premium</span>` : ""}</div>
+      <div class="s">${ic("user")}${esc(r.nurse)} · ${ic("steth")}${esc(r.family_doctor)}</div>
+      <div class="s muted">${esc(r.district)} · ${t("yozildi")} ${esc(fmtTime(r.created_at).slice(11))} · ${esc(ST[r.appt_status] || "")}</div>
+    </div>`).join("") || `<div class="empty">${ic("desk")}<br>${t("Qabulxonadan hali yangi bemor yöq")}</div>`);
+  // Kritik: qizil signal 2 soat javobsiz
+  const fresh = lv.critical.filter(c => !seenCrit.has(c.id));
+  if (fresh.length) { beep(); setTimeout(beep, 600); }
+  lv.critical.forEach(c => seenCrit.add(c.id));
+  const c = lv.critical[0], more = lv.critical.length - 1;
+  setHTML("critbar", c ? `<div class="critbar">${ic("alert", 22)}
+      <div style="flex:1;min-width:240px"><b>${t("KRITIK")}: ${esc(c.full_name)} — ${t("{0} soatdan beri javob yöq", +(lv.critical_minutes / 60).toFixed(2))}</b>
+      <div style="font-size:13px;opacity:.92">${esc(c.district)} · 📞 ${esc(c.phone || "—")} · ${t("Oilaviy şifokor")}: ${esc(c.family_doctor || "—")}${more > 0 ? ` · <b>${t("yana {0} ta kritik signal", more)}</b>` : ""}</div></div>
+      <button class="btn btn-white" onclick="critAck(${c.id},'doctor')">${ic("steth", 16)}${t("Şifokor bog‘landi")}</button>
+      <a class="btn btn-ghost" href="tel:103" onclick="critAck(${c.id},'103')">${ic("phone", 16)}103 ${t("çaqirildi")}</a>
+      <button class="btn btn-ghost" onclick="openPatient(${c.patient_id}, false, true)">${t("Karta")}</button></div>` : "");
+}
+async function critAck(id, action) {
+  await api(`/api/alerts/${id}/critical-ack`, { method: "POST", body: JSON.stringify({ action }) });
+  toast(action === "103" ? t("Qayd etildi: 103 çaqirildi") : t("Qayd etildi: şifokor bog‘landi"), 3500); refresh();
+}
+async function demoCritical() {
+  const r = await api("/api/alerts/critical-now", { method: "POST" });
+  toast(r.critical.length ? t("Kritik bosqiç: {0} ta signal", r.critical.length) : t("Javobsiz qizil signal yöq"), 3500); refresh();
+}
+async function loadRisk() {
+  try {
+    const rs = await api("/api/risk?limit=12");
+    setHTML("risk", rs.map(r => {
+      const col = r.level === "high" ? "var(--red)" : r.level === "mid" ? "var(--amber-dot)" : "var(--green-dot)";
+      return `<div class="feed-item" onclick="openPatient(${r.id}, false, true)">
+        <div class="t"><span style="display:flex;gap:8px;align-items:center"><span class="dot ${r.zone}"></span>${esc(r.full_name)}</span><b style="color:${col}">${r.score}%</b></div>
+        <div class="riskbar"><i style="width:${r.score}%;background:${col}"></i></div>
+        <div class="s muted" style="margin-top:6px">${esc(r.reasons.slice(0, 2).join(" · "))}</div>
+        <div class="s">${ic("phone")}${esc(r.phone || "—")} · ${ic("user")}${esc(r.nurse || "—")}</div></div>`;
+    }).join(""));
+  } catch (e) { console.warn(e); }
+}
+setInterval(() => { if (LTAB === "risk") loadRisk(); }, 15000);
 async function discharge(id) {
   const notes = prompt(t("Javob beriş izohi (masalan: tabiiy tuğruq, çaqaloq 3200 g):"), t("Tabiiy tuğruq, ona va çaqaloq holati qoniqarli"));
   if (notes === null) return;

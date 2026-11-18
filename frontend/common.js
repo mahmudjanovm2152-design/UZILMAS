@@ -80,27 +80,62 @@ function ic(name, size) {
   return `<svg class="i" viewBox="0 0 24 24"${s} aria-hidden="true">${ICONS[name] || ""}</svg>`;
 }
 
+// ---------- Kiriş: har bir xodimning öz logini, har bir rol — öz bölimi ----------
+ICONS.desk = '<path d="M3 21h18"/><path d="M5 21V8h14v13"/><path d="M9 21v-5h6v5"/><path d="M9 3h6v5H9z"/>';
+ICONS.logout = '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="m16 17 5-5-5-5"/><path d="M21 12H9"/>';
+ICONS.chat = '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>';
+ICONS.crown = '<path d="m2 4 3 12h14l3-12-6 7-4-7-4 7-6-7z"/><path d="M5 20h14"/>';
+let USER = null;
+try { USER = JSON.parse(localStorage.getItem("uzilmas_user") || "null"); } catch (e) {}
+function token() { try { return localStorage.getItem("uzilmas_token") || ""; } catch (e) { return ""; } }
+const ROLE_PAGES = {
+  qabul: ["/reception"], hamshira: ["/nurse"], shifokor: ["/dashboard", "/doctor"],
+  bosh: ["/dashboard", "/reception", "/nurse", "/doctor"], bemor: ["/patient"],
+};
+// Sahifa faqat ruxsat etilgan rollarga oçiladi; boşqa rol öz sahifasiga, kirmagan — /login ga
+function guardPage(roles) {
+  if (!USER || !token()) { location.replace("/login?next=" + encodeURIComponent(location.pathname + location.search)); throw new Error("login"); }
+  if (roles && !roles.includes(USER.role)) { location.replace(USER.home || "/"); throw new Error("role"); }
+  return USER;
+}
+async function logout() {
+  try { await api("/api/logout", { method: "POST" }); } catch (e) {}
+  try { localStorage.removeItem("uzilmas_token"); localStorage.removeItem("uzilmas_user"); } catch (e) {}
+  location.href = "/login";
+}
+
 // Yagona yuqori panel (barça sahifalarda bir xil)
 const PAGES = [
-  ["/", "home", t("Boş sahifa")],
+  ["/reception", "desk", t("Qabulxona")],
   ["/dashboard", "grid", t("Mutaxassis paneli")],
   ["/nurse", "user", t("Hamşira")],
   ["/doctor", "steth", t("Oilaviy şifokor")],
+  ["/patient", "heart", t("Bemor kabineti")],
 ];
 function topbar(active, right = "") {
   const el = document.getElementById("topbar"); if (!el) return;
   el.className = "topbar";
+  const allowed = USER ? (ROLE_PAGES[USER.role] || []) : [];
+  const pages = PAGES.filter(([h]) => allowed.includes(h));
+  const userChip = USER ? `<div class="userchip" title="${esc(USER.username)}">${ic(USER.role === "bemor" ? "heart" : "user", 15)}
+      <div><b>${esc(USER.full_name)}</b><small>${esc(LANG === "ru" ? USER.role_ru : USER.role_uz)}</small></div>
+      <button onclick="logout()" title="${t("Çiqiş")}">${ic("logout", 15)}</button></div>`
+    : `<a class="btn btn-primary btn-sm" href="/login">${t("Kiriş")}</a>`;
   el.innerHTML = `<div class="in">
-    <a class="brand" href="/">${LOGO}<div>Uzilmas<small>${t("Bemor zanjiri uzilmaydi")}</small></div></a>
-    <nav class="nav">${PAGES.map(([h, i, title]) => `<a href="${h}" class="${h === active ? "on" : ""}">${ic(i)}<span>${title}</span></a>`).join("")}</nav>
-    <div class="right">${right}${langSwitch()}</div></div>`;
+    <a class="brand" href="${USER ? USER.home : "/"}">${LOGO}<div>Uzilmas<small>${t("Bemor zanjiri uzilmaydi")}</small></div></a>
+    <nav class="nav">${pages.length > 1 ? pages.map(([h, i, title]) => `<a href="${h}" class="${h === active ? "on" : ""}">${ic(i)}<span>${title}</span></a>`).join("") : ""}</nav>
+    <div class="right">${right}${langSwitch()}${userChip}</div></div>`;
 }
 
 async function api(path, opts = {}) {
-  const r = await fetch(API + path + (path.includes("?") ? "&" : "?") + "lang=" + LANG, {
-    headers: opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {},
-    ...opts,
-  });
+  const headers = opts.body && !(opts.body instanceof FormData) ? { "Content-Type": "application/json" } : {};
+  if (token()) headers.Authorization = "Bearer " + token();
+  const r = await fetch(API + path + (path.includes("?") ? "&" : "?") + "lang=" + LANG, { ...opts, headers });
+  if (r.status === 401 && !path.startsWith("/api/login")) {
+    try { localStorage.removeItem("uzilmas_token"); localStorage.removeItem("uzilmas_user"); } catch (e) {}
+    location.replace("/login?next=" + encodeURIComponent(location.pathname + location.search));
+    throw new Error("login");
+  }
   if (!r.ok) {
     let msg = r.status + "";
     try { msg = (await r.json()).detail || msg; } catch (e) {}

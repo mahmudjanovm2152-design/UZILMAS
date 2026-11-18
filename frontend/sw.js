@@ -1,6 +1,6 @@
 // Uzilmas service worker: sahifalarni keshlaydi — hamshira internetsiz ham ilovani oçadi.
-const CACHE = "uzilmas-v2";
-const SHELL = ["/nurse", "/app", "/static/i18n-ru.js", "/static/uzilmas.css", "/static/common.js", "/static/logo-mark.png", "/manifest.webmanifest"];
+const CACHE = "uzilmas-v3";
+const SHELL = ["/nurse", "/app", "/login", "/static/i18n-ru.js", "/static/uzilmas.css", "/static/common.js", "/static/logo-mark.png", "/manifest.webmanifest"];
 self.addEventListener("install", e => e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", e => e.waitUntil(
   caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k)))).then(() => self.clients.claim())));

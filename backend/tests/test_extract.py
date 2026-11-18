@@ -51,6 +51,7 @@ def test_missing_field_is_none_not_normal():
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     monkeypatch.setenv("UZILMAS_DB", str(tmp_path / "t.db"))
+    monkeypatch.setenv("UZILMAS_AUTH", "off")
     import importlib
     from app import db, seed, main
     importlib.reload(db); importlib.reload(seed); importlib.reload(main)

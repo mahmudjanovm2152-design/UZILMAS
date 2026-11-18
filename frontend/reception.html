@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Qabulxona</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 20px 24px 40px; display: grid; grid-template-columns: 1.25fr 1fr; gap: 20px; align-items: start; }
+  .card { margin-bottom: 16px; }
+  .g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; } .g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+  .field { margin-bottom: 12px; }
+  textarea.input { height: 96px; padding: 10px 12px; resize: vertical; line-height: 1.5; }
+  .ai-row { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .signs { display: flex; flex-wrap: wrap; gap: 6px; }
+  .signs label { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px;
+                 font-size: 13px; cursor: pointer; user-select: none; }
+  .signs input { accent-color: var(--red); }
+  .signs label:has(input:checked) { border-color: var(--red); background: var(--red-50); color: var(--red); }
+  .plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .plan { border: 1.5px solid var(--line); border-radius: 12px; padding: 14px; cursor: pointer; position: relative; }
+  .plan.on { border-color: var(--blue); box-shadow: 0 0 0 4px var(--blue-100); }
+  .plan.premium.on { border-color: #E0A100; box-shadow: 0 0 0 4px #FFF1CC; }
+  .plan h4 { display: flex; align-items: center; justify-content: space-between; font-size: 15px; }
+  .plan .price { font-size: 20px; font-weight: 700; color: var(--ink); margin: 6px 0 4px; }
+  .plan ul { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: var(--text); }
+  .plan li { margin: 3px 0; }
+  .res { border-radius: 14px; padding: 16px; margin-top: 4px; animation: slidein .3s; }
+  .res.red { background: var(--red-50); border: 1px solid var(--red-100); }
+  .res.yellow { background: var(--amber-50); border: 1px solid var(--amber-100); }
+  .res.green { background: var(--green-50); border: 1px solid #ABEFC6; }
+  .res h3 { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .resp { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+  .resp div { background: #fff; border-radius: 10px; padding: 10px 12px; border: 1px solid var(--line); font-size: 14px; color: var(--ink); }
+  .resp span { display: block; font-size: 12px; color: var(--muted); }
+  .q-item { display: grid; grid-template-columns: 1fr auto; gap: 8px; padding: 12px 0; border-bottom: 1px solid var(--line-2); }
+  .q-item:last-child { border: 0; }
+  .q-item .nm { font-weight: 600; color: var(--ink); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .q-item .sm { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+  .q-item .who { font-size: 12.5px; color: var(--text); margin-top: 4px; display: flex; gap: 6px; align-items: center; }
+  .q-item .who svg { width: 14px; height: 14px; color: var(--blue); }
+  .st { display: flex; gap: 6px; align-items: center; }
+  .st button { height: 30px; padding: 0 10px; border-radius: 8px; font-size: 12.5px; border: 1px solid var(--line); background: #fff; }
+  .st button:hover { border-color: var(--blue); }
+  .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green-dot); box-shadow: 0 0 0 4px rgba(18,183,106,.18); animation: pulse 1.6s infinite; }
+  @media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; padding: 14px; } .g3 { grid-template-columns: 1fr 1fr; } .plans, .resp { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="wrap">
+  <div>
+    <div class="card">
+      <div class="card-h"><h3 id="h-ai"></h3><span class="ai-badge" id="ai-src"></span></div>
+      <div class="card-b">
+        <div class="muted" style="font-size:13.5px;margin-bottom:8px" data-t>Bemor haqida erkin yozing yoki gapiring — AI kartani özi töldiradi. Siz faqat tekşirasiz.</div>
+        <textarea class="input" id="free" placeholder="Masalan: Sevara Ismoilova, 24 yoş, Yunusobod, 32 hafta, bosim 160/110, boşi qattiq oğriyapti, telefon 90 123 45 67, premium paket" data-tp></textarea>
+        <div class="ai-row">
+          <button class="btn btn-primary" id="ai-go"></button>
+          <button class="btn btn-secondary" id="mic"></button>
+          <button class="btn btn-soft" id="ex" data-t>Namuna matn</button>
+        </div>
+      </div>
+    </div>
+
+    <form class="card" id="form">
+      <div class="card-h"><h3 id="h-form"></h3><span class="muted" style="font-size:12.5px" data-t>* majburiy</span></div>
+      <div class="card-b">
+        <div class="g2">
+          <div class="field"><label data-t>F.I.Ş. *</label><input class="input" id="full_name" required minlength="3"></div>
+          <div class="field"><label data-t>Telefon</label><input class="input" id="phone" placeholder="+998 90 123 45 67"></div>
+        </div>
+        <div class="g3">
+          <div class="field"><label data-t>Yoş</label><input class="input" id="age" type="number" min="12" max="60"></div>
+          <div class="field"><label data-t>Tuman *</label><select class="input" id="district" required></select></div>
+          <div class="field"><label data-t>Homiladorlik, hafta</label><input class="input" id="ga_weeks" type="number" min="0" max="45" step="0.5"></div>
+        </div>
+        <div class="g3">
+          <div class="field"><label data-t>Bosim (yuqori)</label><input class="input" id="sbp" type="number" min="50" max="260"></div>
+          <div class="field"><label data-t>Bosim (pastki)</label><input class="input" id="dbp" type="number" min="30" max="180"></div>
+          <div class="field"><label data-t>Gemoglobin, g/l</label><input class="input" id="hb_g_l" type="number" min="30" max="200"></div>
+        </div>
+        <div class="field"><label data-t>Xavf belgilari</label><div class="signs" id="signs"></div></div>
+        <div class="field"><label data-t>Şikoyat / izoh</label><input class="input" id="complaint"></div>
+        <div class="field"><label data-t>Qabul turi</label><div class="plans" id="plans"></div></div>
+        <div class="g2">
+          <div class="field"><label data-t>Qabul vaqti</label><input class="input" id="visit_at" type="datetime-local"></div>
+          <div class="field" style="display:flex;align-items:flex-end"><button class="btn btn-primary btn-block btn-lg" id="save"></button></div>
+        </div>
+        <div id="result"></div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="position:sticky;top:76px">
+    <div class="card-h"><h3 style="display:flex;gap:10px;align-items:center"><span class="live-dot"></span><span data-t>Bugungi qabul — jonli</span></h3>
+      <span class="muted" style="font-size:12.5px" id="qcnt"></span></div>
+    <div class="card-b" style="padding-top:4px;max-height:calc(100vh - 160px);overflow:auto" id="queue"></div>
+  </div>
+</div>
+
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+guardPage(["qabul", "bosh"]);
+topbar("/reception");
+i18n();
+document.getElementById("h-ai").innerHTML = ic("spark", 16) + " " + t("AI yordamçi");
+document.getElementById("h-form").innerHTML = ic("file", 16) + " " + t("Yangi bemor kartasi");
+document.getElementById("ai-go").innerHTML = ic("spark") + t("AI bilan töldiriş");
+document.getElementById("mic").innerHTML = ic("mic") + t("Gapiriş");
+document.getElementById("save").innerHTML = ic("check") + t("Röyxatga oliş");
+const DISTRICTS = ["Yunusobod", "Çilonzor", "Mirzo Uluğbek", "Yaşnobod", "Şayxontohur", "Olmazor", "Sergeli", "Uçtepa",
+  "Yakkasaroy", "Mirobod", "Bektemir", "Yangihayot", "Yangi Toşkent"];
+document.getElementById("district").innerHTML = `<option value="">—</option>` + DISTRICTS.map(d => `<option>${d}</option>`).join("");
+document.getElementById("signs").innerHTML = Object.entries(SIGNS).map(([k, v]) =>
+  `<label><input type="checkbox" value="${k}">${v}</label>`).join("");
+const d1 = new Date(Date.now() + 864e5); d1.setHours(10, 0, 0, 0);
+document.getElementById("visit_at").value = new Date(d1 - d1.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+
+let PLAN = "bepul", PRICE = 550000;
+const fmtSum = n => n.toLocaleString("ru-RU").replace(/,/g, " ") + " " + t("söm");
+api("/api/reception/plans").then(r => {
+  PRICE = r.price;
+  document.getElementById("plans").innerHTML = ["bepul", "premium"].map(k => `
+    <div class="plan ${k} ${k === PLAN ? "on" : ""}" data-k="${k}">
+      <h4>${k === "premium" ? ic("crown", 16) + " " + t("Pullik — Premium") : t("Bepul")}<span class="plan-badge ${k}">${k === "premium" ? t("50% oldindan") : t("davlat kafolati")}</span></h4>
+      <div class="price">${k === "premium" ? fmtSum(r.price) : "0 " + t("söm")}</div>
+      ${k === "premium" ? `<div class="muted" style="font-size:12.5px">${t("Hozir tölanadi:")} <b style="color:var(--ink)">${fmtSum(r.price * r.prepay_share)}</b></div>` : `<div class="muted" style="font-size:12.5px">${t("Asosiy zanjir")}</div>`}
+      <ul>${r.plans[k].map(x => `<li>${esc(x)}</li>`).join("")}</ul>
+    </div>`).join("");
+  document.querySelectorAll(".plan").forEach(el => el.onclick = () => setPlan(el.dataset.k));
+});
+function setPlan(k) { PLAN = k; document.querySelectorAll(".plan").forEach(el => el.classList.toggle("on", el.dataset.k === k)); }
+
+// ---------- AI yordamçi ----------
+const SAMPLE = t("Sevara Ismoilova, 24 yoş, Yunusobod tumani, 32 hafta. Bosim 162/112, boşi qattiq oğriyapti, közi xiralaşyapti. Telefon 90 123 45 67. Premium paketni tanladi.");
+document.getElementById("ex").onclick = () => { document.getElementById("free").value = SAMPLE; };
+document.getElementById("ai-go").onclick = async () => {
+  const text = document.getElementById("free").value.trim(); if (text.length < 3) return toast(t("Avval matn yozing"));
+  const b = document.getElementById("ai-go"); b.disabled = true; b.innerHTML = ic("spark") + t("AI öqiyapti…");
+  try {
+    const r = await api("/api/ai/intake", { method: "POST", body: JSON.stringify({ text }) });
+    const set = (id, v) => { if (v === null || v === undefined || v === "") return; const el = document.getElementById(id);
+      el.value = v; el.classList.remove("ai-filled"); void el.offsetWidth; el.classList.add("ai-filled"); };
+    ["full_name", "phone", "age", "district", "ga_weeks", "sbp", "dbp", "hb_g_l", "complaint"].forEach(k => set(k, r[k]));
+    document.querySelectorAll("#signs input").forEach(i => { i.checked = (r.symptoms || []).includes(i.value); });
+    setPlan(r.plan || "bepul");
+    document.getElementById("ai-src").innerHTML = ic("spark") + (r.source === "gemini" ? "Gemini" : t("Qoidalar (oflayn)"));
+    toast(t("AI kartani töldirdi — tekşiring va tasdiqlang"));
+  } catch (e) { toast(e.message); }
+  b.disabled = false; b.innerHTML = ic("spark") + t("AI bilan töldiriş");
+};
+// Ovoz: brauzer nutqni taniydi (Chrome), matn AI ga beriladi
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+document.getElementById("mic").onclick = () => {
+  if (!SR) return toast(t("Bu brauzerda ovozli kiritiş yöq — Chrome dan foydalaning"));
+  const r = new SR(); r.lang = LANG === "ru" ? "ru-RU" : "uz-UZ"; r.interimResults = false;
+  const b = document.getElementById("mic"); b.innerHTML = ic("stop") + t("Tinglayapman…");
+  r.onresult = e => { const el = document.getElementById("free"); el.value = (el.value + " " + e.results[0][0].transcript).trim(); };
+  r.onend = () => { b.innerHTML = ic("mic") + t("Gapiriş"); };
+  r.start();
+};
+
+// ---------- Röyxatga oliş ----------
+document.getElementById("form").onsubmit = async e => {
+  e.preventDefault();
+  const num = id => { const v = document.getElementById(id).value; return v === "" ? null : +v; };
+  const body = {
+    full_name: document.getElementById("full_name").value, phone: document.getElementById("phone").value || null,
+    age: num("age"), district: document.getElementById("district").value, ga_weeks: num("ga_weeks"),
+    sbp: num("sbp"), dbp: num("dbp"), hb_g_l: num("hb_g_l"), complaint: document.getElementById("complaint").value || null,
+    symptoms: [...document.querySelectorAll("#signs input:checked")].map(i => i.value), plan: PLAN,
+    visit_at: document.getElementById("visit_at").value.replace("T", " "),
+  };
+  const b = document.getElementById("save"); b.disabled = true;
+  try {
+    const r = await api("/api/reception/register", { method: "POST", body: JSON.stringify(body) });
+    const a = r.assessment;
+    document.getElementById("result").innerHTML = `<div class="res ${r.zone}">
+      <h3>${zonePill(r.zone)} ${esc(body.full_name)} ${r.plan === "premium" ? `<span class="plan-badge premium">${ic("crown")}Premium</span>` : ""}</h3>
+      <div style="margin-top:8px;font-size:14px;color:var(--ink)">${esc(a.summary)}</div>
+      ${r.alert_id ? `<div class="chain-banner" style="margin-top:10px">${ic("bell", 16)}<span><b>${t("Mutaxassisga signal yuborildi")}</b> — ${t("tasdiq kutilmoqda, 2 soatda javob bölmasa — kritik (103)")}</span></div>` : ""}
+      <div class="resp">
+        <div><span>${t("Javobgar hamşira")}</span>${ic("user", 15)} ${esc(r.nurse)}</div>
+        <div><span>${t("Javobgar oilaviy şifokor")}</span>${ic("steth", 15)} ${esc(r.family_doctor)}</div>
+        <div><span>${t("Qabul")}</span>${ic("clock", 15)} ${esc(fmtTime(r.appointment.at))}</div>
+        <div><span>${t("Tölov")}</span>${r.plan === "premium" ? `${fmtSum(r.appointment.prepaid)} ${t("tölandi")} · ${t("qolgani")} ${fmtSum(r.appointment.price - r.appointment.prepaid)}` : t("Bepul")}</div>
+      </div>
+      <div class="muted" style="font-size:12.5px;margin-top:10px">${ic("spark", 14)} ${t("Nega aynan ular:")} ${esc(r.why)}</div>
+      ${r.plan === "premium" ? `<div class="muted" style="font-size:12.5px;margin-top:4px">${ic("home", 14)} ${t("Şaxsiy oilaviy şifokor 24 soat içida uyga boradi — vazifa yuborildi.")}</div>` : ""}
+    </div>`;
+    haptic("success"); toast(t("Bemor röyxatga olindi — panellarda jonli körinadi"));
+    document.getElementById("form").reset(); setPlan("bepul");
+    document.getElementById("visit_at").value = new Date(d1 - d1.getTimezoneOffset() * 6e4).toISOString().slice(0, 16);
+    loadQueue();
+  } catch (err) { toast(err.message, 4000); }
+  b.disabled = false;
+};
+
+// ---------- Jonli navbat ----------
+const ST = { scheduled: t("Kutilmoqda"), came: t("Keldi"), no_show: t("Kelmadi"), moved: t("Köçirildi") };
+async function loadQueue() {
+  try {
+    const r = await api("/api/live?limit=30");
+    document.getElementById("qcnt").textContent = t("{0} ta", r.registrations.length);
+    setHTML("queue", r.registrations.map(p => `<div class="q-item">
+      <div><div class="nm"><span class="dot ${p.zone}"></span>${esc(p.full_name)} ${p.plan === "premium" ? `<span class="plan-badge premium">${ic("crown")}Premium</span>` : ""}</div>
+        <div class="sm">${esc(p.district)} · ${t("qabul")} ${esc(fmtTime(p.at))} · ${esc(ST[p.appt_status] || "")}${p.prepaid ? " · " + t("oldindan") + " " + fmtSum(p.prepaid) : ""}</div>
+        <div class="who">${ic("user")} ${esc(p.nurse)} &nbsp; ${ic("steth")} ${esc(p.family_doctor)}</div></div>
+      <div class="st">${p.appt_status === "scheduled" ? `<button onclick="setSt(${p.appt_id},'came')">${t("Keldi")}</button><button onclick="setSt(${p.appt_id},'no_show')">${t("Kelmadi")}</button>` : ""}</div>
+    </div>`).join("") || `<div class="empty">${ic("desk")}<br>${t("Hali heç kim yozilmagan")}</div>`);
+  } catch (e) { console.warn(e); }
+}
+async function setSt(id, st) {
+  await api(`/api/appointments/${id}/status`, { method: "POST", body: JSON.stringify({ status: st }) });
+  toast(st === "no_show" ? t("Kelmadi: oldindan tölov qaytarilmaydi, bemor «Bugun qöng‘iroq qiling» röyxatiga tuşdi") : t("Belgilandi"), 3500);
+  loadQueue();
+}
+loadQueue(); setInterval(loadQueue, 4000);
+</script>
+</body>
+</html>

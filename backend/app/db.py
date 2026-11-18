@@ -81,7 +81,50 @@ CREATE TABLE IF NOT EXISTS alerts (
     escalated_at    TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_visits_patient ON visits(patient_id, date);
+CREATE TABLE IF NOT EXISTS users (
+    username        TEXT PRIMARY KEY,
+    pass_hash       TEXT NOT NULL,
+    role            TEXT NOT NULL,             -- qabul | hamshira | shifokor | bosh | bemor
+    full_name       TEXT NOT NULL,
+    patient_id      INTEGER                    -- faqat bemor roli uçun
+);
+CREATE TABLE IF NOT EXISTS sessions (
+    token           TEXT PRIMARY KEY,
+    username        TEXT NOT NULL REFERENCES users(username),
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS appointments (
+    id              INTEGER PRIMARY KEY,
+    patient_id      INTEGER NOT NULL REFERENCES patients(id),
+    at              TEXT NOT NULL,             -- qabul vaqti
+    plan            TEXT DEFAULT 'bepul',      -- bepul | premium
+    price           INTEGER DEFAULT 0,         -- söm
+    prepaid         INTEGER DEFAULT 0,         -- oldindan tölangan (premium: 50%)
+    status          TEXT DEFAULT 'scheduled',  -- scheduled | came | no_show | moved
+    created_by      TEXT,
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS messages (
+    id              INTEGER PRIMARY KEY,
+    patient_id      INTEGER NOT NULL REFERENCES patients(id),
+    text            TEXT NOT NULL,
+    reply           TEXT,
+    danger          TEXT DEFAULT '[]',         -- aniqlangan xavf belgilari
+    source          TEXT,                      -- rules | gemini
+    created_at      TEXT DEFAULT (datetime('now','localtime'))
+);
 """
+
+# Eski bazalarga yangi ustunlar (ALTER TABLE ... ADD COLUMN — mavjud bölsa öziga tegmaydi)
+MIGRATIONS = [
+    ("patients", "plan", "TEXT DEFAULT 'bepul'"),
+    ("patients", "complaint", "TEXT"),
+    ("patients", "created_at", "TEXT"),
+    ("patients", "created_by", "TEXT"),
+    ("alerts", "critical_at", "TEXT"),
+    ("alerts", "critical_ack_at", "TEXT"),
+    ("alerts", "critical_ack_by", "TEXT"),
+]
 
 
 def connect() -> sqlite3.Connection:
@@ -104,6 +147,12 @@ def session():
 def init_db() -> None:
     with session() as c:
         c.executescript(SCHEMA)
+        for table, col, decl in MIGRATIONS:
+            cols = {r["name"] for r in c.execute(f"PRAGMA table_info({table})")}
+            if col not in cols:
+                c.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
+    from .auth import seed_users
+    seed_users()
 
 
 def row_to_visit_dict(r: sqlite3.Row) -> dict:

@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Mening kabinetim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  .wrap { max-width: 560px; margin: 0 auto; padding: 16px 16px 120px; }
+  .hello { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: 6px 0 14px; }
+  .hello h1 { font-size: 24px; }
+  .card { margin-bottom: 14px; }
+  .sos { background: var(--red); color: #fff; border-radius: 16px; padding: 16px; margin-bottom: 14px; animation: critpulse 1.6s infinite; }
+  .sos b { font-size: 17px; display: block; } .sos p { margin: 6px 0 12px; font-size: 14px; color: rgba(255,255,255,.92); }
+  .sos a { display: flex; align-items: center; justify-content: center; gap: 10px; height: 52px; border-radius: 12px; background: #fff;
+           color: var(--red); font-weight: 700; font-size: 18px; }
+  .zonebox { display: flex; gap: 14px; align-items: center; }
+  .zonebox .big { width: 56px; height: 56px; border-radius: 16px; display: grid; place-items: center; flex: none; }
+  .zonebox .big svg { width: 26px; height: 26px; }
+  .big.red { background: var(--red-50); color: var(--red); } .big.yellow { background: var(--amber-50); color: var(--amber); }
+  .big.green { background: var(--green-50); color: var(--green); }
+  .stats { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin-top: 14px; }
+  .stats div { background: var(--bg); border-radius: 10px; padding: 10px; text-align: center; }
+  .stats b { display: block; font-size: 18px; color: var(--ink); } .stats span { font-size: 12px; color: var(--muted); }
+  .quick { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .quick button { border: 1px solid var(--line); border-radius: 12px; padding: 12px; text-align: left; font-size: 14px; color: var(--ink);
+                  display: flex; gap: 9px; align-items: center; background: #fff; min-height: 52px; }
+  .quick button.bad { border-color: var(--red-100); }
+  .quick button.bad svg { color: var(--red); } .quick button.ok svg { color: var(--green-dot); }
+  .chat { display: flex; flex-direction: column; gap: 8px; max-height: 380px; overflow: auto; padding: 4px 2px; }
+  .msg { max-width: 86%; padding: 10px 12px; border-radius: 14px; font-size: 14.5px; line-height: 1.45; }
+  .msg.me { align-self: flex-end; background: var(--blue); color: #fff; border-bottom-right-radius: 4px; }
+  .msg.ai { align-self: flex-start; background: var(--line-2); color: var(--ink); border-bottom-left-radius: 4px; }
+  .msg.ai.danger { background: var(--red-50); border: 1px solid var(--red-100); }
+  .msg small { display: block; font-size: 11.5px; opacity: .75; margin-top: 4px; }
+  .composer { position: fixed; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,.96); backdrop-filter: blur(8px);
+              border-top: 1px solid var(--line); padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); }
+  .composer .in { max-width: 560px; margin: 0 auto; display: flex; gap: 8px; }
+  .composer .input { height: 48px; }
+  .composer .btn { height: 48px; width: 52px; padding: 0; justify-content: center; }
+  .appt { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .feat li { margin: 4px 0; font-size: 13.5px; }
+</style>
+</head>
+<body>
+<header id="topbar"></header>
+<div class="wrap">
+  <div id="sos"></div>
+  <div class="hello"><h1 id="hi"></h1><span id="plan"></span></div>
+  <div class="card card-b" id="zone"></div>
+  <div class="card"><div class="card-h"><h3 data-t>Bugun özingizni qanday his qilyapsiz?</h3></div>
+    <div class="card-b" style="padding-top:4px"><div class="quick" id="quick"></div></div></div>
+  <div class="card"><div class="card-h"><h3 id="h-chat"></h3><span class="ai-badge hidden" id="src"></span></div>
+    <div class="card-b" style="padding-top:4px"><div class="chat" id="chat"></div></div></div>
+  <div class="card" id="appt"></div>
+  <div class="card"><div class="card-h"><h3 data-t>Mening jamoam</h3></div><div class="card-b" id="team"></div></div>
+  <div class="card"><div class="card-h"><h3 id="h-plan"></h3></div><div class="card-b"><ul class="feat" id="feat"></ul></div></div>
+</div>
+<form class="composer" id="cmp"><div class="in">
+  <input class="input" id="msg" placeholder="Savolingizni yozing… (masalan: bosim 140/90)" data-tp autocomplete="off">
+  <button class="btn btn-primary" id="send"></button></div></form>
+
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+guardPage(["bemor"]);
+topbar("/patient");
+i18n();
+document.getElementById("send").innerHTML = ic("send");
+document.getElementById("h-chat").innerHTML = ic("chat", 16) + " " + t("AI yordamçi — 24/7");
+const QUICK = [
+  ["ok", "checkc", t("Hammasi yaxşi"), t("Hammasi yaxşi, özimni yaxşi his qilyapman")],
+  ["bad", "alert", t("Boşim qattiq oğriyapti"), t("Boşim qattiq oğriyapti")],
+  ["bad", "drop", t("Qon ketyapti"), t("Qon ketyapti")],
+  ["bad", "heart", t("Bola kam qimirlayapti"), t("Bola kam qimirlayapti")],
+  ["bad", "activity", t("Qorinda kuçli oğriq"), t("Qornim qattiq oğriyapti")],
+  ["ok", "edit", t("Bosimni yozaman"), null],
+];
+document.getElementById("quick").innerHTML = QUICK.map(([k, i, label], n) =>
+  `<button class="${k}" onclick="quick(${n})">${ic(i)}<span>${label}</span></button>`).join("");
+function quick(n) {
+  const q = QUICK[n];
+  if (!q[3]) { const el = document.getElementById("msg"); el.value = t("Bosim") + " "; el.focus(); return; }
+  ask(q[3]);
+}
+const ZICON = { red: "alert", yellow: "activity", green: "checkc" };
+const ZTXT = { red: t("Şifokoringiz holatingizni nazoratga oldi. Uni kuting yoki özingiz qöng‘iroq qiling."),
+  yellow: t("Kuzatuv kerak: vizitlarni ötkazib yubormang, bosimni har kuni ölçang."),
+  green: t("Hammasi reja böyiça. Keyingi vizitni ötkazib yubormang.") };
+let CARD = null, sending = false;
+async function load() {
+  try {
+    const c = CARD = await api("/api/my/card");
+    const p = c.patient;
+    document.getElementById("hi").textContent = t("Salom, {0}!", p.full_name.split(" ").slice(-1)[0]);
+    document.getElementById("plan").innerHTML = p.plan === "premium" ? `<span class="plan-badge premium">${ic("crown")}Premium</span>` : `<span class="plan-badge">${t("Bepul")}</span>`;
+    setHTML("sos", c.critical ? `<div class="sos"><b>${ic("alert", 18)} ${t("Zudlik bilan yordam kerak bölişi mumkin")}</b>
+      <p>${t("Şifokoringiz bilan bog‘lanilmoqda. Holat yomonlaşsa — kutmang:")}</p><a href="tel:103">${ic("phone", 20)} 103 ${t("— tez yordam")}</a></div>` : "");
+    setHTML("zone", `<div class="zonebox"><div class="big ${c.zone}">${ic(ZICON[c.zone])}</div>
+      <div><div style="display:flex;gap:8px;align-items:center">${zonePill(c.zone)}${c.doctor_notified ? `<span class="tag blue">${ic("bell", 13)}${t("Şifokor xabardor")}</span>` : ""}</div>
+      <div style="font-size:14px;color:var(--ink);margin-top:6px">${esc(ZTXT[c.zone])}</div></div></div>
+      <div class="stats"><div><b>${c.ga_weeks ?? "—"}</b><span>${t("hafta")}</span></div>
+        <div>${c.next_visit_in > 0 ? `<b>${c.next_visit_in}</b><span>${t("kundan keyin taşrif")}</span>` : `<b style="color:var(--amber)">${t("Bugun")}</b><span>${t("taşrif kerak")}</span>`}</div>
+        <div><b>${esc(c.last_visit ? c.last_visit.slice(5).split("-").reverse().join(".") : "—")}</b><span>${t("oxirgi ölçov")}</span></div></div>`);
+    const ap = c.appointments.find(a => a.status === "scheduled") || c.appointments[0];
+    setHTML("appt", ap ? `<div class="card-h"><h3>${ic("clock", 16)} ${t("Keyingi qabul")}</h3>${ap.prepaid ? `<span class="plan-badge premium">${t("50% tölangan")}</span>` : ""}</div>
+      <div class="card-b"><div class="appt"><div><b style="font-size:18px;color:var(--ink)">${esc(fmtTime(ap.at))}</b>
+        <div class="muted" style="font-size:13px">${ap.prepaid ? t("Oldindan tölangan: {0} söm — kelsangiz, qabul narxiga qöşiladi", ap.prepaid.toLocaleString("ru-RU")) : t("Bepul qabul")}</div></div>
+        ${ap.status === "scheduled" ? `<button class="btn btn-secondary btn-sm" onclick="move(${ap.id})">${t("Köçiriş")}</button>` : `<span class="tag">${esc(ap.status)}</span>`}</div></div>`
+      : `<div class="card-b muted">${t("Rejalaştirilgan qabul yöq")}</div>`);
+    setHTML("team", `<div class="kv" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:14px;color:var(--ink)">
+      <div><span class="muted" style="display:block;font-size:12px">${t("Hamşira")}</span>${ic("user", 15)} ${esc(p.nurse || "—")}</div>
+      <div><span class="muted" style="display:block;font-size:12px">${t("Oilaviy şifokor")}</span>${ic("steth", 15)} ${esc(p.family_doctor || "—")}</div></div>`);
+    document.getElementById("h-plan").innerHTML = (p.plan === "premium" ? ic("crown", 16) + " Premium" : t("Bepul paket")) + " — " + t("nima kiradi");
+    setHTML("feat", c.plan_features.map(f => `<li>${esc(f)}</li>`).join(""));
+    drawChat(c.messages);
+  } catch (e) { console.warn(e); }
+}
+function drawChat(ms) {
+  const html = ms.map(m => `<div class="msg me">${esc(m.text)}</div>
+    <div class="msg ai ${m.danger && m.danger !== "[]" ? "danger" : ""}">${esc(m.reply || "")}<small>${m.source === "gemini" ? "Gemini" : t("Uzilmas qoidalari")} · ${esc((m.created_at || "").slice(11, 16))}</small></div>`).join("")
+    || `<div class="msg ai">${t("Salom! Men Uzilmas yordamçisiman. Savolingizni yozing yoki yuqoridagi tugmani bosing. Xavfli belgi bölsa — şifokoringizga darhol xabar beraman.")}</div>`;
+  if (setHTML("chat", html)) { const el = document.getElementById("chat"); el.scrollTop = el.scrollHeight; }
+}
+async function ask(text) {
+  if (sending || !text.trim()) return; sending = true;
+  const chat = document.getElementById("chat");
+  chat.insertAdjacentHTML("beforeend", `<div class="msg me">${esc(text)}</div><div class="msg ai" id="typing">…</div>`);
+  chat._html = null; chat.scrollTop = chat.scrollHeight;
+  try {
+    const r = await api("/api/my/ask", { method: "POST", body: JSON.stringify({ text }) });
+    document.getElementById("src").classList.remove("hidden"); document.getElementById("src").innerHTML = ic("spark") + (r.source === "gemini" ? "Gemini" : t("Qoidalar"));
+    if (r.alert_id) { haptic("warning"); toast(t("Şifokoringizga signal yuborildi"), 3500); }
+    await load();
+  } catch (e) { toast(e.message); }
+  sending = false;
+}
+async function move(id) {
+  try { await api(`/api/my/appointments/${id}/move`, { method: "POST" }); toast(t("Qabul 1 haftaga köçirildi — tölov saqlanadi")); load(); }
+  catch (e) { toast(e.message, 4000); }
+}
+document.getElementById("cmp").onsubmit = e => { e.preventDefault(); const el = document.getElementById("msg"); const v = el.value; el.value = ""; ask(v); };
+load(); setInterval(() => { if (!sending) load(); }, 5000);
+</script>
+</body>
+</html>

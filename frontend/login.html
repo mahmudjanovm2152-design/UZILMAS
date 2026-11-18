@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Uzilmas · Kiriş</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="icon" href="/static/favicon.png">
+<link rel="stylesheet" href="/static/uzilmas.css">
+<style>
+  body { min-height: 100vh; display: grid; grid-template-columns: 1.05fr 1fr; }
+  .side { background: linear-gradient(150deg, #0A6CF5 0%, #0759C9 55%, #13A8A1 100%); color: #fff; padding: 48px 56px;
+          display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+  .side::after { content: ""; position: absolute; right: -120px; bottom: -120px; width: 420px; height: 420px; border-radius: 50%;
+                 border: 70px solid rgba(255,255,255,.07); }
+  .side .brand { color: #fff; font-size: 22px; } .side .brand small { color: rgba(255,255,255,.8); }
+  .side h1 { color: #fff; font-size: 38px; line-height: 1.15; letter-spacing: -.03em; max-width: 520px; }
+  .side p { color: rgba(255,255,255,.88); font-size: 16px; max-width: 480px; }
+  .roles { display: grid; gap: 10px; max-width: 460px; position: relative; z-index: 1; }
+  .roles div { display: flex; gap: 12px; align-items: center; font-size: 14.5px; color: rgba(255,255,255,.95); }
+  .roles svg { width: 18px; height: 18px; background: rgba(255,255,255,.16); border-radius: 8px; padding: 7px; box-sizing: content-box; }
+  .main { display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 40px 24px; background: #fff; }
+  .box { width: 100%; max-width: 400px; }
+  .box h2 { font-size: 26px; margin-bottom: 6px; }
+  .box .field { margin-top: 16px; }
+  .err { color: var(--red); font-size: 14px; min-height: 22px; margin-top: 10px; }
+  .demo { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 18px; }
+  .demo h4 { font-size: 13px; color: var(--muted); font-weight: 600; margin-bottom: 10px; text-transform: uppercase; letter-spacing: .04em; }
+  .acc { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .acc button { text-align: left; border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; display: flex; gap: 9px; align-items: center; }
+  .acc button:hover { border-color: var(--blue); background: var(--blue-50); }
+  .acc button svg { color: var(--blue); }
+  .acc b { display: block; font-size: 13.5px; color: var(--ink); } .acc small { font-size: 12px; color: var(--muted); font-family: ui-monospace, Menlo, monospace; }
+  .top { position: absolute; top: 18px; right: 24px; }
+  @media (max-width: 900px) {
+    body { grid-template-columns: 1fr; } .side { padding: 28px 24px; gap: 18px; } .side h1 { font-size: 26px; }
+    .side p, .roles { display: none; } .main { padding: 28px 20px 40px; } .acc { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<section class="side">
+  <a class="brand" href="/"><img class="mark" src="/static/logo-mark.png" alt="" style="border-radius:8px"><div>Uzilmas<small data-t>Bemor zanjiri uzilmaydi</small></div></a>
+  <div>
+    <h1 data-t>Har bir xodim — öz bölimida. Har bir signal — javobgar bilan.</h1>
+    <p data-t>Qabulxona yozadi, AI javobgarni tanlaydi, hamşira va şifokor jonli köradi. Bemor — öz kabinetida.</p>
+  </div>
+  <div class="roles" id="roles"></div>
+</section>
+<section class="main">
+  <div class="top" id="lang"></div>
+  <form class="box" id="f" autocomplete="on">
+    <h2 data-t>Tizimga kiriş</h2>
+    <div class="muted" data-t>Login va parolingizni kiriting</div>
+    <div class="field"><label for="u" data-t>Login</label><input class="input" id="u" autocomplete="username" required></div>
+    <div class="field"><label for="p" data-t>Parol</label><input class="input" id="p" type="password" autocomplete="current-password" required></div>
+    <div class="err" id="err"></div>
+    <button class="btn btn-primary btn-block btn-lg" id="go" data-t>Kiriş</button>
+    <div class="demo">
+      <h4 data-t>Demo hisoblar — bosing</h4>
+      <div class="acc" id="acc"></div>
+    </div>
+  </form>
+</section>
+<script src="/static/i18n-ru.js"></script>
+<script src="/static/common.js"></script>
+<script>
+i18n();
+document.getElementById("lang").innerHTML = langSwitch();
+const DEMO = [
+  ["qabul", "Qabul2026", "desk", t("Qabulxona")], ["hamshira", "Hamshira2026", "user", t("Hamşira")],
+  ["shifokor", "Shifokor2026", "steth", t("Şifokor")], ["bosh", "Bosh2026", "shield", t("Boş şifokor")],
+  ["bemor", "Bemor2026", "heart", t("Bemor")],
+];
+document.getElementById("roles").innerHTML = [
+  ["desk", t("Qabulxona — yangi bemorni yozadi, AI javobgarni biriktiradi")],
+  ["user", t("Hamşira — taşrif, ovoz va rasm orqali kiritiş")],
+  ["steth", t("Şifokor — signallar, AI xulosa, aktiv çaqiruv")],
+  ["shield", t("Boş şifokor — hamma bölimlar va kritik signallar")],
+  ["heart", t("Bemor — öz kabineti va AI yordamçi")],
+].map(([i, s]) => `<div>${ic(i)}<span>${s}</span></div>`).join("");
+document.getElementById("acc").innerHTML = DEMO.map(([u, p, i, r]) =>
+  `<button type="button" onclick="fill('${u}','${p}')">${ic(i, 16)}<div><b>${r}</b><small>${u} · ${p}</small></div></button>`).join("");
+function fill(u, p) { document.getElementById("u").value = u; document.getElementById("p").value = p; document.getElementById("go").focus(); }
+const next = new URLSearchParams(location.search).get("next");
+const pre = new URLSearchParams(location.search).get("u");
+if (pre) { const d = DEMO.find(x => x[0] === pre); if (d) fill(d[0], d[1]); }
+if (USER && token() && !next) location.replace(USER.home);
+document.getElementById("f").onsubmit = async e => {
+  e.preventDefault();
+  const btn = document.getElementById("go"); btn.disabled = true;
+  document.getElementById("err").textContent = "";
+  try {
+    const u = await api("/api/login", { method: "POST", body: JSON.stringify({
+      username: document.getElementById("u").value, password: document.getElementById("p").value }) });
+    localStorage.setItem("uzilmas_token", u.token);
+    delete u.token; localStorage.setItem("uzilmas_user", JSON.stringify(u));
+    haptic("success");
+    const allowed = ROLE_PAGES[u.role] || [];
+    location.replace(next && allowed.includes(next.split("?")[0]) ? next : u.home);
+  } catch (err) {
+    document.getElementById("err").textContent = t("Login yoki parol notöğri");
+    btn.disabled = false; haptic("error");
+  }
+};
+</script>
+</body>
+</html>

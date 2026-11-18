@@ -18,6 +18,12 @@ from typing import Optional
 
 # Patronaj oraliği (kun): xavf qança yuqori bölsa, taşrif şunça tez-tez
 VISIT_INTERVAL = {"red": 7, "yellow": 14, "green": 28}
+# Premium (pullik) paket: patronaj ikki baravar tez-tez
+PREMIUM_INTERVAL = {"red": 3, "yellow": 7, "green": 14}
+
+
+def interval_for(p: dict, zone: str) -> int:
+    return (PREMIUM_INTERVAL if (p.get("plan") or "bepul") == "premium" else VISIT_INTERVAL)[zone]
 ZONE_TXT = {"uz": {"red": "qizil", "yellow": "sariq", "green": "yaşil"},
             "ru": {"red": "красной", "yellow": "жёлтой", "green": "зелёной"}}
 TITLES = {
@@ -85,7 +91,7 @@ def build(p: dict, visits: list[dict], a, alerts: list[dict],
         links.append(dict(key=key, title=TITLES[key][1 if ru else 0], who=who, status=status, note=note, due_at=due))
 
     # 1. Patronaj
-    interval = VISIT_INTERVAL[zone]
+    interval = interval_for(p, zone)
     nurse = p.get("nurse") or L("Hamşira", "Медсестра")
     last = visits[-1]["date"] if visits else None
     if not last:
@@ -114,6 +120,10 @@ def build(p: dict, visits: list[dict], a, alerts: list[dict],
     who = L("OvaBMU mutaxassisi", "Специалист ОМД")
     if red_al and not red_al["acknowledged_at"]:
         st, note, due = _alert_link(red_al, now, "specialist", lang)
+        if red_al.get("critical_at"):
+            st, due = "broken", None
+            note = L("KRITIK: javob yöq — oilaviy şifokor darhol bog‘lansin, kerak bölsa 103",
+                     "КРИТИЧНО: нет ответа — семейный врач срочно связывается, при необходимости 103")
         add("specialist", who, st, note, due)
     elif zone == "red":
         if red_al:
