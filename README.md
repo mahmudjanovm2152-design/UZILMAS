@@ -2,12 +2,27 @@
 
 ![Uzilmas](docs/banner.png)
 
-**Bemor tizimdan tuşib qolmaydi.** · *The unbroken chain of care.*
-Homilador ayolni patronaj hamşirasidan tortib oilaviy şifokorgaça bitta uzluksiz zanjirda kuzatadigan platforma.
+**Boşqalar eslatadi — Uzilmas kafolatlaydi.** · *The unbroken chain of care.*
+Xususiy klinikalar uçun AI platforma: homilador ayol bir skriningdan keyin kuzatuvdan tuşib qolmaydi, xavf belgisi esa şifokorga 2 soat içida yetadi.
 
-Umummilliy AI Xakaton — Toşkent, 2026 · Soğliqni saqlaş vazirligi muammolari **№9, №10, №11**
+Milliy AI Xakaton — Toşkent, 2026 · Soğliqni saqlaş yönalişi
 
-![Mutaxassis paneli](docs/2_mutaxassis_paneli.png)
+![Şifokor paneli](docs/v05/1_panel_xarita.jpg)
+
+## Uç asosiy farq
+1. **50% oldindan tölov** — Premium 250 000 söm, 125 000 söm oldindan: tölagan ayol keladi, kelmaslik kamayadi.
+2. **2 soat → 103** — qizil signal 2 soat tasdiqlanmasa, oilaviy va boş şifokorga KRITIK xabar, ekranda 103 tugmasi.
+3. **Javobgarlik jurnali** — har bir bemorda javobgar hamşira va şifokor; kim, qaçon, nima qilgani yozib boriladi.
+
+## AI — 4 funksiya (Gemini 2.5 Flash)
+| Funksiya | Kim uçun | Nima qiladi |
+|---|---|---|
+| Intake | Qabulxona | Bir gap (matn yoki ovoz) → bemor kartasi avtomatik töldiriladi |
+| Triaj | Bemor | Şikoyatdan xavf belgisini topadi → qizil zona va signal |
+| Xulosa | Şifokor | Butun tarix 3 qatorda: zona, sabablar, nima qiliş |
+| Kelmaslik xavfi | Şifokor | Kim kelmasligini oldindan aytadi: «bugun qöng‘iroq qiling» |
+
+AI taşxis qöymaydi: xavfli belgilar deterministik qoidalar bilan aniqlanadi, AI faqat xavfni **oşira** oladi. Gemini işlamasa — qoidalar bilan işlaş davom etadi.
 
 ## Asosiy imkoniyat — Jonli zanjir
 Har bir bemor uçun 5 böğin: **Patronaj → Xavf baholaş → Mutaxassis → Tuğruq muassasasi → Oilaviy şifokor**.
@@ -100,22 +115,25 @@ pip install -r requirements.txt
 cp .env.example .env            # GEMINI_API_KEY, TELEGRAM_* ni yozing
 python -m app.seed              # 100 + 3 demo bemor (sintetik)
 uvicorn app.main:app --host 0.0.0.0 --port 8000
-python -m pytest -q             # 33 ta test
+python -m pytest -q             # 40 ta test
 ```
 
 | Sahifa | Kim uçun |
 |---|---|
-| `/` | Boş sahifa: qanday işlaydi, modullar, jonli statistika |
-| `/nurse` | Patronaj hamşirasi (telefon, offline, rasm, ovoz) — №10 |
-| `/dashboard` | Mutaxassis paneli — OvaBMU mutaxassisi: xarita, zonalar, izohlar, jonli ogohlantirişlar — №9 |
-| `/doctor` | Oilaviy şifokor: aktiv çaqiruvlar, 24 soat taymer — №11 |
+| `/login` | Kiriş — 5 rol |
+| `/reception` | Qabulxona: AI yordamçi, tarif, jonli navbat |
+| `/dashboard` | Şifokor paneli: xarita, hamkor klinikalar, signallar, yangi qabul, kelmaslik xavfi |
+| `/analytics` | Statistika: daromad, kelmaslik, signallar, AI sarfi (tokenlar, narx) |
+| `/nurse` | Patronaj hamşirasi (telefon, offline, rasm, ovoz) |
+| `/doctor` | Oilaviy şifokor: aktiv çaqiruvlar |
+| `/patient` | Bemor kabineti: karta, navbat, AI yordamçi, SOS 103 |
 | `/docs` | API hujjatlari |
 
 ## Xarita
 Toşkentning 13 tumani çegaralari — **OpenStreetMap** (ODbL) maʼlumotlari, `frontend/tashkent_districts.geojson`. Tuman rangi — xavf indeksi (qizil zona + uzilgan zanjir). Leaflet kutubxonasi loyiha içida (`frontend/vendor/leaflet`) — internetsiz ham xarita va çegaralar körinadi; fon xarita (CARTO) internet bölsa yuklanadi.
 
 ## Texnologiyalar
-FastAPI · SQLite · Gemini Vision (tahlil rasmi) · Aisha STT (özbek nutqi) · Telegram Bot API · PWA (service worker, offline navbat) · Leaflet
+FastAPI (Python) · SQLite (MVP) · Gemini 2.5 Flash (intake, triaj, xulosa, kelmaslik xavfi, tahlil rasmi) · Aisha STT (özbek nutqi) · Telegram Bot API + Mini App · PWA · Leaflet
 
 ## Arxitektura
 ```
@@ -123,25 +141,36 @@ backend/app/
   rules.py     oçiq qoidalar: zona, izoh, manba, dinamika (AI emas!)
   extract.py   Gemini: tahlil rasmi -> raqamlar (işonç, birlik, oraliq tekşiruvi)
   voice.py     Aisha/Gemini: nutq -> matn -> raqamlar; özbekça sonlar ("yuz ellik ikki" -> 152)
-  notify.py    Telegram xabarlar, "Qabul qildim" tugmasi, eskalatsiya, aktiv çaqiruv
-  main.py      API + sahifalar
-frontend/      index, nurse (PWA), dashboard, doctor
+  notify.py    Telegram xabarlar, "Qabul qildim" tugmasi, eskalatsiya, KRITIK (2 soat) va 103
+  ai.py        Gemini: intake, triaj, şifokorga xulosa, kelmaslik xavfi (har biri qoidalar zaxirasi bilan)
+  auth.py      rollar (RBAC), PBKDF2-SHA256 parollar, 12 soatlik sessiyalar
+  usage.py     AI sarfi: tokenlar, $ va söm narxi
+  chain.py     jonli zanjir, Premium oraliqlari (3/7/14 kun)
+  main.py      API + sahifalar, server tomonida rol tekşiruvi
+frontend/      login, reception, dashboard, analytics, patient, nurse (PWA), doctor, app (Mini App)
 ```
 
-## Skrinşotlar
-| Hamşira: röyxat | Hamşira: taşrif | Oilaviy şifokor |
-|---|---|---|
-| ![](docs/3_hamshira.png) | ![](docs/4_hamshira_tashrif.png) | ![](docs/5_oilaviy_shifokor.png) |
+## Xavfsizlik va maʼlumotlar
+- Parollar — PBKDF2-SHA256 + tuz; sessiya tokeni 12 soat; rollar **server tomonida** tekşiriladi (bemor faqat öz maʼlumotini köradi).
+- Maxfiy kalitlar faqat `.env` da, repozitoriyda yöq; `/setup` faqat serverning özidan (localhost) oçiladi.
+- Audit: kritik signal böyiça kim, qaçon, qanday çora körgani jurnalda.
+- Demo maʼlumotlar sintetik.
+- Prodakşn rejasi: PostgreSQL Özbekiston hududidagi serverda (şaxsiy maʼlumotlar qonuni), AI'ga yuborişdan oldin F.I.Ş. va telefonni olib taşlaş, Telegram xabarlarida minimal maʼlumot, 2FA va rate limiting, şifrlangan zaxira nusxalar.
 
-| Ruscha interfeys | Telegram Mini App | Yöriqnoma |
+## Skrinşotlar
+| Qabulxona: AI kartani töldiradi | KRITIK: 2 soat → 103 | Statistika |
 |---|---|---|
-| ![](docs/8_ru_panel.png) | ![](docs/9_mini_app_uz.png) | ![](docs/6_yoriqnoma.png) |
+| ![](docs/v05/2_qabulxona_ai.jpg) | ![](docs/v05/3_kritik_103.jpg) | ![](docs/v05/4_statistika.jpg) |
+
+| Kelmaslik xavfi (AI) | Bemor: AI triaj | Bemor: SOS 103 |
+|---|---|---|
+| ![](docs/v05/5_kelmaslik_xavfi.jpg) | ![](docs/v05/7_bemor_ai.jpg) | ![](docs/v05/8_bemor_sos.jpg) |
 
 ## Keyingi bosqiçlar
-1. Pilot: Toşkentning bitta tumani, 2–3 oilaviy poliklinika
+1. Pilot: Toşkentdagi birinçi xususiy klinikalar (6 oyda 20 klinika, 1 yilda 120)
 2. DMED bilan API integratsiya
-3. Yangi treklar: gipertoniya, diabet (xuddi şu platforma)
-4. Qoidalarni Respublika perinatal markazi mutaxassislari bilan tasdiqlaş
+3. Prodakşn: PostgreSQL Özbekistonda, deperzonalizatsiya, 2FA
+4. Qoidalarni akuşer-ginekologlar bilan tasdiqlaş; yangi modullar: gipertoniya, diabet
 
 ⚠️ Prototip. Barça ma'lumotlar va blankalar sintetik (NAMUNA). Çegaralar amaliyotda qöllaşdan oldin akuşer-ginekolog tomonidan tasdiqlanişi şart. Tizim taşxis qöymaydi — şifokor qarorini qöllab-quvvatlaydi.
 

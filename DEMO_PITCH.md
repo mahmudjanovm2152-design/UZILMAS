@@ -38,7 +38,7 @@ Soğliqni saqlaş vazirligining özi buni uçta muammo sifatida qöygan: №9 �
 "Bizda zonani AI emas, oçiq qoidalar belgilaydi — JSST va klinik protokollar asosida, har birining manbasi bor. AI faqat öqiydi va tuşuntiradi. AI xavotirni kötara oladi, lekin bekor qila olmaydi. Işonçi past bölsa — 'tekşiring' deydi, heç qaçon 'norma' demaydi."
 
 **[2:40 — Bozor va keyingi qadam, 20 s]**
-"Model — B2G: Soğliqni saqlaş vazirligi va tuman tibbiyot birlaşmalari, tuman böyiça obuna. Hindistonda bunday qismlar alohida tizimlar sifatida mavjud; Özbekistonda bunday işlaydigan tizim yöq. Keyingi qadam — bitta tumanda pilot va DMED bilan integratsiya. Uzilmas — bemor zanjiri uzilmaydi."
+"Model — faqat xususiy klinikalar: Standart klinika qabuliga kiradi, Premium — 250 000 söm, 50% oldindan. Uzilmas klinikaga tuşgan puldan 20% oladi (gipoteza). Birinçi hamkorlar — Yashfaa Clinic, InCare Lab va akuşerlik-ginekologiya markazi. Keyingi qadam — 6 oyda Toşkentda 20 klinika, 1 yilda butun Özbekiston. Uzilmas — bemor zanjiri uzilmaydi."
 
 ## ❓ Hakamlar savollari — tayyor javoblar
 | Savol | Javob |
